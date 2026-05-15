@@ -4,6 +4,9 @@ dist/
 *.local
 .env
 
+# DTLN runtime files copied via postinstall (scripts/copy-dtln-assets.sh)
+public/dtln-web/
+
 # Test clips — скачиваются по требованию через test-clips/download.sh, в репо не лежат.
 test-clips/clean/
 test-clips/noise/
