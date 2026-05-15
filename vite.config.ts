@@ -1,15 +1,16 @@
 import { defineConfig } from 'vite';
 
-// COOP/COEP заголовки нужны для SharedArrayBuffer (онxruntime-web threaded, dtln-rs threaded).
-// На kn.pe/lab/noise-bench их выставит nginx; в dev-режиме — Vite.
+// COOP/COEP заголовки включают SharedArrayBuffer → tflite-runtime в dtln-web
+// поднимает threaded XNNPACK и спавнит много worker thread'ов под main-thread
+// ScriptProcessorNode → tab вешается. Отключаем для dev. dtln-web fallback'нет
+// на cc_simd (non-threaded), что в нашем сценарии работает стабильно.
+//
+// Когда подключим DFN-3 (onnxruntime-web с threaded SIMD), либо включим
+// заголовки обратно с другим setup tflite, либо пустим DFN тоже non-threaded.
 const crossOriginIsolation = {
   name: 'cross-origin-isolation',
-  configureServer(server: any) {
-    server.middlewares.use((_req: any, res: any, next: any) => {
-      res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-      res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-      next();
-    });
+  configureServer(_server: any) {
+    // intentionally empty: см. комментарий выше
   },
 };
 
