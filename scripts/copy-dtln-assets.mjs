@@ -33,13 +33,12 @@ const files = [
   'model_quant_dynamic_2.tflite',
 ];
 
-// Все 4 варианта tflite WASM runtime + worker'ы для threaded-вариантов.
-for (const variant of ['cc', 'cc_simd', 'cc_threaded', 'cc_simd_threaded']) {
+// Только non-threaded варианты tflite WASM. Threaded варианты вызывают
+// CPU starvation на main-thread ScriptProcessorNode (см. vite.config.ts).
+// dtln-web запросит threaded → 404 → fallback на cc_simd.
+for (const variant of ['cc', 'cc_simd']) {
   files.push(`tflite_web_api_${variant}.wasm`);
   files.push(`tflite_web_api_${variant}.js`);
-  if (variant.endsWith('threaded')) {
-    files.push(`tflite_web_api_${variant}.worker.js`);
-  }
 }
 
 for (const f of files) {
