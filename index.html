@@ -4,37 +4,104 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>NSLab — Noise Suppression Lab</title>
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500&family=Roboto+Mono:wght@400;500&display=swap"
+    />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined"
+    />
     <link rel="stylesheet" href="/src/styles.css" />
   </head>
   <body>
-    <main>
+    <main class="surface">
       <header>
-        <h1>NSLab</h1>
-        <p class="sub">A/B-сравнение шумодавов в реальном времени</p>
+        <h1 class="display-medium">NSLab</h1>
+        <p class="body-large on-surface-variant">
+          A/B-сравнение шумодавов в реальном времени
+        </p>
       </header>
 
-      <section class="warn">
-        ⚠ Используй наушники — иначе будет feedback (Larsen-loop).
-      </section>
+      <md-elevated-card class="warn-card">
+        <div class="warn-content">
+          <span class="material-symbols-outlined">headphones</span>
+          <span>Используй наушники — иначе будет feedback (Larsen-loop).</span>
+        </div>
+      </md-elevated-card>
 
       <section class="controls">
-        <button id="btn-start">Включить микрофон</button>
-        <button id="btn-stop" disabled>Стоп</button>
+        <md-filled-button id="btn-start">
+          <span class="material-symbols-outlined" slot="icon">mic</span>
+          Включить микрофон
+        </md-filled-button>
+        <md-outlined-button id="btn-stop" disabled>
+          <span class="material-symbols-outlined" slot="icon">stop</span>
+          Стоп
+        </md-outlined-button>
       </section>
 
-      <section class="modes">
-        <label><input type="radio" name="mode" value="raw" checked /> Raw (без обработки)</label>
-        <label><input type="radio" name="mode" value="rnnoise" disabled /> RNNoise (TODO)</label>
-        <label><input type="radio" name="mode" value="dtln" disabled /> DTLN-rs (TODO)</label>
-        <label><input type="radio" name="mode" value="dfn3" disabled /> DeepFilterNet 3 (TODO)</label>
-      </section>
+      <md-outlined-card class="modes-card">
+        <h3 class="title-medium">Шумодав</h3>
 
-      <section class="metrics">
-        <div>RMS: <span id="m-rms">—</span> dB</div>
-        <div>State: <span id="m-state">idle</span></div>
-      </section>
+        <label class="mode-item">
+          <md-radio name="mode" value="raw" checked></md-radio>
+          <div>
+            <div class="body-large">Raw</div>
+            <div class="body-small on-surface-variant">Без обработки (baseline)</div>
+          </div>
+        </label>
 
-      <footer>
+        <label class="mode-item disabled">
+          <md-radio name="mode" value="rnnoise" disabled></md-radio>
+          <div>
+            <div class="body-large">RNNoise</div>
+            <div class="body-small on-surface-variant">
+              Xiph/Mozilla, 2018 · TODO
+            </div>
+          </div>
+        </label>
+
+        <label class="mode-item disabled">
+          <md-radio name="mode" value="dtln" disabled></md-radio>
+          <div>
+            <div class="body-large">DTLN-rs</div>
+            <div class="body-small on-surface-variant">
+              Datadog, 2020 · TODO
+            </div>
+          </div>
+        </label>
+
+        <label class="mode-item disabled">
+          <md-radio name="mode" value="dfn3" disabled></md-radio>
+          <div>
+            <div class="body-large">DeepFilterNet 3</div>
+            <div class="body-small on-surface-variant">
+              Rikorose, 2023 · TODO
+            </div>
+          </div>
+        </label>
+      </md-outlined-card>
+
+      <md-outlined-card class="metrics-card">
+        <h3 class="title-medium">Метрики</h3>
+        <div class="metrics-row">
+          <div class="metric">
+            <div class="label-small on-surface-variant">RMS</div>
+            <div class="metric-value"><span id="m-rms">—</span> dB</div>
+          </div>
+          <div class="metric">
+            <div class="label-small on-surface-variant">State</div>
+            <div class="metric-value"><span id="m-state">idle</span></div>
+          </div>
+          <div class="metric">
+            <div class="label-small on-surface-variant">Sample rate</div>
+            <div class="metric-value"><span id="m-sr">—</span> Hz</div>
+          </div>
+        </div>
+      </md-outlined-card>
+
+      <footer class="body-small on-surface-variant">
         <a href="https://github.com/Kinescope-Igor/nslab">github.com/Kinescope-Igor/nslab</a>
       </footer>
     </main>

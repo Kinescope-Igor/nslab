@@ -1,86 +1,195 @@
+/*
+ * Material 3 dark scheme — токены сгенерированы через Material Theme Builder
+ * (seed colour #58a6ff). Применяются к md-* компонентам через CSS-переменные.
+ *
+ * https://m3.material.io/styles/color/system/overview
+ */
 :root {
   color-scheme: dark;
-  --bg: #0e1116;
-  --fg: #e6edf3;
-  --muted: #8b949e;
-  --accent: #58a6ff;
-  --warn-bg: #2d2620;
-  --warn-fg: #f0b87a;
-  --border: #30363d;
+
+  /* Color tokens (M3 dark) */
+  --md-sys-color-primary: #abc7ff;
+  --md-sys-color-on-primary: #002f65;
+  --md-sys-color-primary-container: #00468f;
+  --md-sys-color-on-primary-container: #d6e2ff;
+  --md-sys-color-secondary: #bdc7dc;
+  --md-sys-color-on-secondary: #273141;
+  --md-sys-color-surface: #111418;
+  --md-sys-color-on-surface: #e2e2e6;
+  --md-sys-color-surface-container: #1d2024;
+  --md-sys-color-surface-container-high: #272a2f;
+  --md-sys-color-on-surface-variant: #c4c6cf;
+  --md-sys-color-outline: #8d9199;
+  --md-sys-color-outline-variant: #43474e;
+  --md-sys-color-error: #ffb4ab;
+  --md-sys-color-on-error: #690005;
+
+  /* Tertiary — для warning */
+  --md-sys-color-tertiary: #ddbce0;
+  --md-sys-color-on-tertiary: #401944;
+
+  /* Type scale */
+  --md-sys-typescale-display-medium-font: 'Roboto', sans-serif;
+  --md-sys-typescale-display-medium-size: 45px;
+  --md-sys-typescale-display-medium-weight: 400;
+
+  --md-sys-typescale-title-medium-font: 'Roboto', sans-serif;
+  --md-sys-typescale-title-medium-size: 16px;
+  --md-sys-typescale-title-medium-weight: 500;
+
+  --md-sys-typescale-body-large-font: 'Roboto', sans-serif;
+  --md-sys-typescale-body-large-size: 16px;
+
+  --md-sys-typescale-body-small-font: 'Roboto', sans-serif;
+  --md-sys-typescale-body-small-size: 12px;
+
+  --md-sys-typescale-label-small-font: 'Roboto', sans-serif;
+  --md-sys-typescale-label-small-size: 11px;
+  --md-sys-typescale-label-small-weight: 500;
 }
 
 * { box-sizing: border-box; }
 
-body {
+html, body {
   margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: var(--bg);
-  color: var(--fg);
+  padding: 0;
+  background: var(--md-sys-color-surface);
+  color: var(--md-sys-color-on-surface);
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif;
+  -webkit-font-smoothing: antialiased;
   min-height: 100vh;
-  display: flex;
-  justify-content: center;
 }
+
+body { display: flex; justify-content: center; }
 
 main {
   max-width: 720px;
   width: 100%;
-  padding: 32px 24px;
+  padding: 32px 24px 64px;
 }
 
-header h1 { margin: 0 0 4px; font-size: 28px; }
-header .sub { margin: 0; color: var(--muted); }
-
-section { margin: 24px 0; }
-
-.warn {
-  padding: 12px 16px;
-  background: var(--warn-bg);
-  color: var(--warn-fg);
-  border-radius: 6px;
-  border: 1px solid #5a4a30;
+/* Type-scale utility classes (Material 3) */
+.display-medium {
+  font-family: var(--md-sys-typescale-display-medium-font);
+  font-size: var(--md-sys-typescale-display-medium-size);
+  font-weight: var(--md-sys-typescale-display-medium-weight);
+  line-height: 52px;
+  letter-spacing: 0;
+  margin: 0 0 4px;
 }
 
-.controls button {
-  padding: 10px 18px;
-  margin-right: 8px;
-  background: var(--accent);
-  color: #0d1117;
-  border: 0;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
+.title-medium {
+  font-family: var(--md-sys-typescale-title-medium-font);
+  font-size: var(--md-sys-typescale-title-medium-size);
+  font-weight: var(--md-sys-typescale-title-medium-weight);
+  margin: 0 0 16px;
 }
 
-.controls button:disabled {
-  background: #30363d;
-  color: var(--muted);
-  cursor: not-allowed;
+.body-large {
+  font-family: var(--md-sys-typescale-body-large-font);
+  font-size: var(--md-sys-typescale-body-large-size);
+  line-height: 24px;
+  margin: 0;
 }
 
-.modes label {
+.body-small {
+  font-family: var(--md-sys-typescale-body-small-font);
+  font-size: var(--md-sys-typescale-body-small-size);
+  line-height: 16px;
+}
+
+.label-small {
+  font-family: var(--md-sys-typescale-label-small-font);
+  font-size: var(--md-sys-typescale-label-small-size);
+  font-weight: var(--md-sys-typescale-label-small-weight);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+}
+
+.on-surface-variant { color: var(--md-sys-color-on-surface-variant); }
+.surface { background: var(--md-sys-color-surface); }
+
+header { padding: 16px 0 24px; }
+
+/* Cards */
+md-elevated-card,
+md-outlined-card {
   display: block;
-  padding: 8px 0;
-  cursor: pointer;
+  margin: 16px 0;
+  padding: 20px;
+  --md-elevated-card-container-color: var(--md-sys-color-surface-container);
+  --md-outlined-card-container-color: var(--md-sys-color-surface);
 }
 
-.modes label input[type="radio"]:disabled + * { color: var(--muted); }
+.warn-card {
+  --md-elevated-card-container-color: var(--md-sys-color-tertiary);
+}
 
-.metrics {
+.warn-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--md-sys-color-on-tertiary);
+}
+
+.warn-content .material-symbols-outlined {
+  font-size: 24px;
+}
+
+/* Controls */
+.controls {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 24px 0;
+}
+
+/* Mode list */
+.mode-item {
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 0;
+  cursor: pointer;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+
+.mode-item:last-of-type { border-bottom: 0; }
+
+.mode-item.disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.mode-item md-radio {
+  flex-shrink: 0;
+}
+
+/* Metrics */
+.metrics-row {
   display: flex;
   gap: 24px;
-  padding: 12px 16px;
-  background: #161b22;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  font-family: ui-monospace, monospace;
-  font-size: 13px;
+  flex-wrap: wrap;
+}
+
+.metric { min-width: 100px; }
+
+.metric-value {
+  font-family: 'Roboto Mono', monospace;
+  font-size: 20px;
+  margin-top: 4px;
 }
 
 footer {
-  margin-top: 48px;
-  color: var(--muted);
-  font-size: 12px;
+  margin-top: 32px;
+  text-align: center;
 }
 
-footer a { color: var(--muted); }
+footer a {
+  color: var(--md-sys-color-on-surface-variant);
+  text-decoration: none;
+}
+
+footer a:hover {
+  text-decoration: underline;
+}

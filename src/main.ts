@@ -1,12 +1,22 @@
 import { start, stop, setMode, state, Mode } from './audio/pipeline';
 
+// Material Web components — подгружаем только то, что используем.
+import '@material/web/button/filled-button.js';
+import '@material/web/button/outlined-button.js';
+import '@material/web/labs/card/elevated-card.js';
+import '@material/web/labs/card/outlined-card.js';
+import '@material/web/radio/radio.js';
+
 const $ = (sel: string) => document.querySelector(sel)!;
 
 const btnStart = $('#btn-start') as HTMLButtonElement;
 const btnStop = $('#btn-stop') as HTMLButtonElement;
 const mState = $('#m-state') as HTMLSpanElement;
 const mRms = $('#m-rms') as HTMLSpanElement;
-const modeRadios = document.querySelectorAll<HTMLInputElement>('input[name="mode"]');
+const mSr = $('#m-sr') as HTMLSpanElement;
+
+// md-radio шлёт обычное change-событие на parent <label>
+const modeRadios = document.querySelectorAll<HTMLElement>('md-radio[name="mode"]');
 
 btnStart.addEventListener('click', async () => {
   btnStart.disabled = true;
@@ -14,7 +24,8 @@ btnStart.addEventListener('click', async () => {
 
   try {
     await start();
-    mState.textContent = `running (${state.context!.sampleRate} Hz)`;
+    mState.textContent = 'running';
+    mSr.textContent = String(state.context!.sampleRate);
     btnStop.disabled = false;
 
     // Подписка на RMS-сообщения из worklet.
@@ -34,12 +45,15 @@ btnStop.addEventListener('click', async () => {
   await stop();
   mState.textContent = 'idle';
   mRms.textContent = '—';
+  mSr.textContent = '—';
   btnStart.disabled = false;
   btnStop.disabled = true;
 });
 
 modeRadios.forEach((r) => {
   r.addEventListener('change', () => {
-    if (r.checked) setMode(r.value as Mode);
+    const checked = (r as any).checked;
+    const value = (r as any).value as Mode;
+    if (checked) setMode(value);
   });
 });
