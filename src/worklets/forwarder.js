@@ -9,6 +9,7 @@
  */
 
 const PRE_ROLL_FRAMES = 4; // ~40 ms @ 48 kHz, frameSize=480
+const MAX_QUEUE_FRAMES = 12; // ~120 ms — drop-old policy против накопления при slow inference
 
 class Forwarder extends AudioWorkletProcessor {
   constructor(options) {
@@ -30,6 +31,13 @@ class Forwarder extends AudioWorkletProcessor {
     this.port.onmessage = (e) => {
       if (e.data?.type === 'processed') {
         this.outputQueue.push(e.data.frame);
+        // Drop-old: если main thread медленнее реального времени, очередь
+        // растёт неограниченно (память + латентность). Сбрасываем самые
+        // старые, оставляя свежие — пользователь слышит «прыжок» вместо
+        // нарастающей задержки.
+        while (this.outputQueue.length > MAX_QUEUE_FRAMES) {
+          this.outputQueue.shift();
+        }
       }
     };
   }

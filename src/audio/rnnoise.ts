@@ -28,7 +28,12 @@ export async function init(): Promise<Loaded> {
         processFrame: (frame: Float32Array) => state.processFrame(frame),
         destroy: () => state.destroy(),
       };
-    })();
+    })().catch((err) => {
+      // Сбрасываем кэш, иначе следующий init() мгновенно вернёт rejected
+      // promise без попытки реинициализации (404 / network blip → permanent fail).
+      loadedPromise = null;
+      throw err;
+    });
   }
   return loadedPromise;
 }

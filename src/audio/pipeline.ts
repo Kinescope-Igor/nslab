@@ -84,7 +84,7 @@ export function setMode(mode: Mode): Promise<void> {
 }
 
 async function teardown(): Promise<void> {
-  // Снимаем obрабочики port — closure не должен дёргать state после disconnect.
+  // Снимаем обработчики port — closure не должен дёргать state после disconnect.
   if (state.node && 'port' in state.node) {
     (state.node as AudioWorkletNode).port.onmessage = null;
   }
@@ -92,6 +92,10 @@ async function teardown(): Promise<void> {
   state.source?.disconnect();
   state.stream?.getTracks().forEach((t) => t.stop());
   await state.context?.close();
+
+  // Освобождаем WASM-память моделей (RNNoise держит DenoiseState в WASM heap).
+  // dtln-web сам управляет жизненным циклом TFLite через own context.
+  await rnnoise.destroy().catch(() => {});
 
   state.context = null;
   state.stream = null;
@@ -134,8 +138,15 @@ async function applyMode(mode: Mode): Promise<void> {
 
   // 1. СНАЧАЛА разрываем старую цепочку — иначе на момент swap source отдаёт
   //    звук в обе цепочки и юзер слышит сумму raw + denoised.
-  if (state.node && 'port' in state.node) {
-    (state.node as AudioWorkletNode).port.onmessage = null;
+  if (state.node) {
+    if ('port' in state.node) {
+      (state.node as AudioWorkletNode).port.onmessage = null;
+    }
+    // Помечаем in-flight async-обработчики как stale — не дать им перетереть
+    // state нового режима после swap.
+    if ('__markStale' in state.node) {
+      (state.node as { __markStale?: () => void }).__markStale?.();
+    }
   }
   state.source.disconnect();
   state.node?.disconnect();
@@ -155,11 +166,19 @@ async function applyMode(mode: Mode): Promise<void> {
     const w = new AudioWorkletNode(state.context, 'forwarder-processor', {
       processorOptions: { frameSize: loaded.frameSize },
     });
+    // isStale защищает от ситуации, когда asyncprocessFrame() ещё в полёте,
+    // а пользователь уже свапнул режим: in-flight результат не должен ни
+    // обновлять onVad (перетрёт показания нового), ни писать в закрытый port.
+    let isStale = false;
+    (w as any).__markStale = () => {
+      isStale = true;
+    };
     w.port.onmessage = async (e) => {
+      if (isStale) return;
       if (e.data?.type === 'frame') {
         const frame = e.data.frame as Float32Array;
         const vad = await rnnoise.processFrame(frame);
-        // Если nodes свапнули, port уже закрыт — postMessage просто no-op.
+        if (isStale) return;
         w.port.postMessage({ type: 'processed', frame }, [frame.buffer]);
         state.onVad?.(vad);
       } else if (e.data?.type === 'rms') {

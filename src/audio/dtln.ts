@@ -26,9 +26,15 @@ export async function init(): Promise<DtlnApi> {
       await m.loadModel({ path: '/dtln-web/', quant: 'dynamic' });
       return {
         sampleRate: m.sampleRate,
-        createNode: (ctx) => m.createDtlnProcessorNode(ctx, { channelCount: 1 }),
+        createNode: (ctx: BaseAudioContext) =>
+          m.createDtlnProcessorNode(ctx, { channelCount: 1 }),
       };
-    })();
+    })().catch((err) => {
+      // Сбрасываем кэш, иначе следующий init() мгновенно вернёт rejected
+      // promise без попытки реинициализации (404 / network blip → permanent fail).
+      apiPromise = null;
+      throw err;
+    });
   }
   return apiPromise;
 }
