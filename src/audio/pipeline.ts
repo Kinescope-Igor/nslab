@@ -17,6 +17,7 @@ import passthroughUrl from '../worklets/passthrough.js?url';
 import forwarderUrl from '../worklets/forwarder.js?url';
 import * as rnnoise from './rnnoise';
 import * as dtln from './dtln';
+import * as dfn3 from './dfn3';
 
 export type Mode = 'raw' | 'rnnoise' | 'dtln' | 'dfn3';
 
@@ -93,9 +94,10 @@ async function teardown(): Promise<void> {
   state.stream?.getTracks().forEach((t) => t.stop());
   await state.context?.close();
 
-  // Освобождаем WASM-память моделей (RNNoise держит DenoiseState в WASM heap).
+  // Освобождаем WASM-память моделей (RNNoise держит DenoiseState в WASM heap;
+  // DFN-3 — TFLite-runtime + buffers).
   // dtln-web сам управляет жизненным циклом TFLite через own context.
-  await rnnoise.destroy().catch(() => {});
+  await Promise.all([rnnoise.destroy().catch(() => {}), dfn3.destroy().catch(() => {})]);
 
   state.context = null;
   state.stream = null;
@@ -191,8 +193,46 @@ async function applyMode(mode: Mode): Promise<void> {
     const api = await dtln.init();
     newNode = api.createNode(state.context);
     state.onVad?.(NaN);
+  } else if (mode === 'dfn3') {
+    const loaded = await dfn3.init();
+    const w = new AudioWorkletNode(state.context, 'forwarder-processor', {
+      processorOptions: { frameSize: loaded.frameSize },
+    });
+    // DFN-3 в streaming-mode возвращает Float32Array переменной длины:
+    // 0 семплов (буфер ещё не накопился) или N×frameSize. Накапливаем
+    // выход в pendingOut, отдаём worklet'у строго по frameSize.
+    let pendingOut = new Float32Array(0);
+    let isStale = false;
+    (w as any).__markStale = () => {
+      isStale = true;
+    };
+    w.port.onmessage = (e) => {
+      if (isStale) return;
+      if (e.data?.type === 'frame') {
+        const frame = e.data.frame as Float32Array;
+        const out = dfn3.processFrame(frame);
+        // Append out to pendingOut.
+        if (out.length > 0) {
+          const merged = new Float32Array(pendingOut.length + out.length);
+          merged.set(pendingOut, 0);
+          merged.set(out, pendingOut.length);
+          pendingOut = merged;
+        }
+        // Отдаём frameSize-блоками; если не накопилось — silence (frame in-place очистим).
+        if (pendingOut.length >= loaded.frameSize) {
+          frame.set(pendingOut.subarray(0, loaded.frameSize));
+          pendingOut = pendingOut.slice(loaded.frameSize);
+        } else {
+          frame.fill(0);
+        }
+        w.port.postMessage({ type: 'processed', frame }, [frame.buffer]);
+        state.onVad?.(NaN); // у DFN-3 VAD отдельным API не выставляется
+      } else if (e.data?.type === 'rms') {
+        state.onRms?.(e.data.dbfs);
+      }
+    };
+    newNode = w;
   } else {
-    // dfn3 — TODO
     newNode = new AudioWorkletNode(state.context, 'passthrough-processor');
   }
 

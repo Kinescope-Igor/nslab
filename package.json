@@ -17,6 +17,7 @@
   "dependencies": {
     "@material/web": "2.4.1",
     "@sapphi-red/dtln-web": "0.1.4",
-    "@shiguredo/rnnoise-wasm": "2025.1.5"
+    "@shiguredo/rnnoise-wasm": "2025.1.5",
+    "deepfilter-standalone": "1.0.2"
   }
 }
