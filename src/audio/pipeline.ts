@@ -8,6 +8,9 @@
  *
  * Так как RNNoise требует 48 kHz, а DTLN — 16 kHz, при смене режима
  * пересоздаём AudioContext с правильным sampleRate.
+ *
+ * Все публичные операции (start / stop / setMode) сериализуются через
+ * opChain — иначе два параллельных вызова перетирают state.
  */
 
 import passthroughUrl from '../worklets/passthrough.js?url';
@@ -42,12 +45,49 @@ export const state: PipelineState = {
   mode: 'raw',
 };
 
-export async function start(): Promise<void> {
-  if (state.context) return;
-  await reinitContext(state.mode);
+// Сериализатор операций: каждая публичная функция выполняется только после
+// завершения предыдущей. Ошибки в op'ах не блокируют chain.
+let opChain: Promise<void> = Promise.resolve();
+function enqueue<T>(fn: () => Promise<T>): Promise<T> {
+  const next = opChain.then(fn, fn);
+  opChain = next.then(
+    () => undefined,
+    () => undefined,
+  );
+  return next;
 }
 
-export async function stop(): Promise<void> {
+export function start(): Promise<void> {
+  return enqueue(async () => {
+    if (state.context) return;
+    await reinitContext(state.mode);
+  });
+}
+
+export function stop(): Promise<void> {
+  return enqueue(async () => {
+    await teardown();
+  });
+}
+
+export function setMode(mode: Mode): Promise<void> {
+  return enqueue(async () => {
+    state.mode = mode;
+    if (!state.context) return;
+    if (state.context.sampleRate === SAMPLE_RATE[mode]) {
+      await applyMode(mode);
+    } else {
+      await teardown();
+      await reinitContext(mode);
+    }
+  });
+}
+
+async function teardown(): Promise<void> {
+  // Снимаем obрабочики port — closure не должен дёргать state после disconnect.
+  if (state.node && 'port' in state.node) {
+    (state.node as AudioWorkletNode).port.onmessage = null;
+  }
   state.node?.disconnect();
   state.source?.disconnect();
   state.stream?.getTracks().forEach((t) => t.stop());
@@ -59,25 +99,10 @@ export async function stop(): Promise<void> {
   state.node = null;
 }
 
-export async function setMode(mode: Mode): Promise<void> {
-  const wasRunning = !!state.context;
-  state.mode = mode;
-  if (!wasRunning) return;
-
-  // Если sample rate не меняется — переключаем только обработчик.
-  if (state.context!.sampleRate === SAMPLE_RATE[mode]) {
-    await applyMode(mode);
-  } else {
-    // Иначе — пересоздаём context.
-    await stop();
-    await reinitContext(mode);
-  }
-}
-
 async function reinitContext(mode: Mode): Promise<void> {
-  state.context = new AudioContext({ sampleRate: SAMPLE_RATE[mode] });
-
-  state.stream = await navigator.mediaDevices.getUserMedia({
+  // 1. Сначала запрашиваем mic. Если permission denied — throw до создания
+  //    AudioContext, state остаётся нулевым → следующий start() сработает.
+  const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
       // Отключаем браузерный APM — мы тестируем ИМЕННО наши шумодавы.
@@ -87,17 +112,36 @@ async function reinitContext(mode: Mode): Promise<void> {
     },
   });
 
-  await state.context.audioWorklet.addModule(passthroughUrl);
-  await state.context.audioWorklet.addModule(forwarderUrl);
+  // 2. Создаём context (если на этом этапе кто-то отменит — освобождаем mic).
+  let context: AudioContext;
+  try {
+    context = new AudioContext({ sampleRate: SAMPLE_RATE[mode] });
+    await context.audioWorklet.addModule(passthroughUrl);
+    await context.audioWorklet.addModule(forwarderUrl);
+  } catch (err) {
+    stream.getTracks().forEach((t) => t.stop());
+    throw err;
+  }
 
-  state.source = state.context.createMediaStreamSource(state.stream);
+  state.context = context;
+  state.stream = stream;
+  state.source = context.createMediaStreamSource(stream);
   await applyMode(mode);
 }
 
 async function applyMode(mode: Mode): Promise<void> {
   if (!state.context || !state.source) return;
 
-  const oldNode = state.node;
+  // 1. СНАЧАЛА разрываем старую цепочку — иначе на момент swap source отдаёт
+  //    звук в обе цепочки и юзер слышит сумму raw + denoised.
+  if (state.node && 'port' in state.node) {
+    (state.node as AudioWorkletNode).port.onmessage = null;
+  }
+  state.source.disconnect();
+  state.node?.disconnect();
+  state.node = null;
+
+  // 2. Создаём новый узел и инициализируем модель (если нужно).
   let newNode: AudioNode;
 
   if (mode === 'raw') {
@@ -115,6 +159,7 @@ async function applyMode(mode: Mode): Promise<void> {
       if (e.data?.type === 'frame') {
         const frame = e.data.frame as Float32Array;
         const vad = await rnnoise.processFrame(frame);
+        // Если nodes свапнули, port уже закрыт — postMessage просто no-op.
         w.port.postMessage({ type: 'processed', frame }, [frame.buffer]);
         state.onVad?.(vad);
       } else if (e.data?.type === 'rms') {
@@ -125,13 +170,13 @@ async function applyMode(mode: Mode): Promise<void> {
   } else if (mode === 'dtln') {
     const api = await dtln.init();
     newNode = api.createNode(state.context);
-    state.onVad?.(NaN); // у DTLN VAD нет
+    state.onVad?.(NaN);
   } else {
     // dfn3 — TODO
     newNode = new AudioWorkletNode(state.context, 'passthrough-processor');
   }
 
+  // 3. Подключаем новую цепочку.
   state.source.connect(newNode).connect(state.context.destination);
-  oldNode?.disconnect();
   state.node = newNode;
 }
