@@ -1,11 +1,14 @@
 /**
  * Forwarder worklet: ring-buffer на frameSize семплов.
- * Шлёт собранный фрейм в main thread через port, ждёт обратно обработанный
- * и пишет его в output. Если обработанный фрейм ещё не пришёл — output silence.
+ * Шлёт собранный фрейм в main thread через port, ждёт обратно обработанный.
  *
- * Используется для всех NS-режимов (RNNoise / DTLN / DFN-3): сама модель
- * крутится в main thread, worklet — только транспорт.
+ * Pre-roll: при старте кладём в outputQueue несколько silence-фреймов, чтобы
+ * дать main thread фору. Без этого первые ~50 ms будет underrun → клик/треск.
+ *
+ * Output дублируется на все каналы (микрофон моно, наушники стерео).
  */
+
+const PRE_ROLL_FRAMES = 4; // ~40 ms @ 48 kHz, frameSize=480
 
 class Forwarder extends AudioWorkletProcessor {
   constructor(options) {
@@ -13,11 +16,16 @@ class Forwarder extends AudioWorkletProcessor {
     this.frameSize = options.processorOptions?.frameSize ?? 480;
     this.inputBuf = new Float32Array(this.frameSize);
     this.inputPos = 0;
-    this.outputQueue = []; // массивы Float32Array(frameSize) обработанных фреймов
+    this.outputQueue = [];
     this.outputBuf = null;
     this.outputPos = 0;
     this.frameId = 0;
     this.rmsTick = 0;
+
+    // Pre-roll: silence-фреймы, чтобы output не пустовал в первые несколько вызовов process().
+    for (let i = 0; i < PRE_ROLL_FRAMES; i++) {
+      this.outputQueue.push(new Float32Array(this.frameSize));
+    }
 
     this.port.onmessage = (e) => {
       if (e.data?.type === 'processed') {
@@ -28,14 +36,15 @@ class Forwarder extends AudioWorkletProcessor {
 
   process(inputs, outputs) {
     const input = inputs[0]?.[0];
-    const output = outputs[0]?.[0];
-    if (!input || !output) return true;
+    const output = outputs[0]; // массив каналов (1 или 2 для стерео-устройств)
+    if (!input || !output || output.length === 0) return true;
 
-    // 1. Складываем входные семплы в inputBuf, при заполнении — отправляем фрейм.
+    const blockSize = output[0].length;
+
+    // 1. Складываем входные семплы, при заполнении — отправляем фрейм.
     for (let i = 0; i < input.length; i++) {
       this.inputBuf[this.inputPos++] = input[i];
       if (this.inputPos === this.frameSize) {
-        // Передаём через transferable для нулевой копии.
         const frame = this.inputBuf;
         this.inputBuf = new Float32Array(this.frameSize);
         this.inputPos = 0;
@@ -46,13 +55,16 @@ class Forwarder extends AudioWorkletProcessor {
       }
     }
 
-    // 2. Заполняем output из outputQueue.
-    for (let i = 0; i < output.length; i++) {
+    // 2. Заполняем output из outputQueue, дублируем на все каналы (моно → стерео).
+    for (let i = 0; i < blockSize; i++) {
       if (!this.outputBuf || this.outputPos >= this.outputBuf.length) {
         this.outputBuf = this.outputQueue.shift() ?? null;
         this.outputPos = 0;
       }
-      output[i] = this.outputBuf ? this.outputBuf[this.outputPos++] : 0;
+      const sample = this.outputBuf ? this.outputBuf[this.outputPos++] : 0;
+      for (let ch = 0; ch < output.length; ch++) {
+        output[ch][i] = sample;
+      }
     }
 
     // 3. RMS на input каждые ~50 ms.

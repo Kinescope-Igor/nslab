@@ -4,49 +4,50 @@
  *
  * Особенности RNNoise:
  *  - sample rate 48 kHz (в браузере по дефолту так и есть)
- *  - frame size 480 samples (10 ms)
+ *  - frame size 480 samples (10 ms) — берём из runtime, не хардкодим
  *  - входные семплы должны быть 16-bit PCM, scaled to Float32 (умножить на 32768)
  *  - возвращает VAD-вероятность [0..1]
  */
 
-let denoiseStatePromise: Promise<{
+interface Loaded {
+  frameSize: number;
   processFrame: (frame: Float32Array) => number;
   destroy: () => void;
-}> | null = null;
+}
 
-export const FRAME_SIZE = 480;
+let loadedPromise: Promise<Loaded> | null = null;
 
-export async function init(): Promise<void> {
-  if (!denoiseStatePromise) {
-    denoiseStatePromise = (async () => {
+export async function init(): Promise<Loaded> {
+  if (!loadedPromise) {
+    loadedPromise = (async () => {
       const { Rnnoise } = await import('@shiguredo/rnnoise-wasm');
       const rnnoise = await Rnnoise.load();
       const state = rnnoise.createDenoiseState();
       return {
+        frameSize: rnnoise.frameSize,
         processFrame: (frame: Float32Array) => state.processFrame(frame),
         destroy: () => state.destroy(),
       };
     })();
   }
-  await denoiseStatePromise;
+  return loadedPromise;
 }
 
 /** Обрабатывает фрейм in-place. Возвращает VAD [0..1]. */
 export async function processFrame(frame: Float32Array): Promise<number> {
-  if (!denoiseStatePromise) throw new Error('rnnoise not initialised');
-  const state = await denoiseStatePromise;
+  const loaded = await init();
   // Scale [-1, 1] → [-32768, 32767] (RNNoise ожидает 16-bit PCM в Float32).
   for (let i = 0; i < frame.length; i++) frame[i] *= 32768;
-  const vad = state.processFrame(frame);
+  const vad = loaded.processFrame(frame);
   // Обратно в [-1, 1].
   for (let i = 0; i < frame.length; i++) frame[i] /= 32768;
   return vad;
 }
 
 export async function destroy(): Promise<void> {
-  if (denoiseStatePromise) {
-    const state = await denoiseStatePromise;
-    state.destroy();
-    denoiseStatePromise = null;
+  if (loadedPromise) {
+    const loaded = await loadedPromise;
+    loaded.destroy();
+    loadedPromise = null;
   }
 }

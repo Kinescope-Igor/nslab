@@ -87,9 +87,9 @@ async function applyMode(mode: Mode): Promise<void> {
   if (mode === 'raw') {
     newWorklet = new AudioWorkletNode(state.context, 'passthrough-processor');
   } else if (mode === 'rnnoise') {
-    await rnnoise.init();
+    const loaded = await rnnoise.init();
     newWorklet = new AudioWorkletNode(state.context, 'forwarder-processor', {
-      processorOptions: { frameSize: rnnoise.FRAME_SIZE },
+      processorOptions: { frameSize: loaded.frameSize },
     });
     newWorklet.port.onmessage = async (e) => {
       if (e.data?.type === 'frame') {
