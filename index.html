@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>NSLab — Noise Suppression Lab</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <main>
+      <header>
+        <h1>NSLab</h1>
+        <p class="sub">A/B-сравнение шумодавов в реальном времени</p>
+      </header>
+
+      <section class="warn">
+        ⚠ Используй наушники — иначе будет feedback (Larsen-loop).
+      </section>
+
+      <section class="controls">
+        <button id="btn-start">Включить микрофон</button>
+        <button id="btn-stop" disabled>Стоп</button>
+      </section>
+
+      <section class="modes">
+        <label><input type="radio" name="mode" value="raw" checked /> Raw (без обработки)</label>
+        <label><input type="radio" name="mode" value="rnnoise" disabled /> RNNoise (TODO)</label>
+        <label><input type="radio" name="mode" value="dtln" disabled /> DTLN-rs (TODO)</label>
+        <label><input type="radio" name="mode" value="dfn3" disabled /> DeepFilterNet 3 (TODO)</label>
+      </section>
+
+      <section class="metrics">
+        <div>RMS: <span id="m-rms">—</span> dB</div>
+        <div>State: <span id="m-state">idle</span></div>
+      </section>
+
+      <footer>
+        <a href="https://github.com/Kinescope-Igor/nslab">github.com/Kinescope-Igor/nslab</a>
+      </footer>
+    </main>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

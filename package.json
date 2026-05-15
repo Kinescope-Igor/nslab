@@ -1,0 +1,16 @@
+{
+  "name": "nslab",
+  "private": true,
+  "version": "0.0.1",
+  "type": "module",
+  "description": "Noise Suppression Lab — A/B сравнение RNNoise / DTLN / DeepFilterNet 3 в браузере",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview"
+  },
+  "devDependencies": {
+    "typescript": "~5.6.3",
+    "vite": "^6.0.7"
+  }
+}

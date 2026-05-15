@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+*.local
+.env
+
+# Test clips — скачиваются по требованию через test-clips/download.sh, в репо не лежат.
+test-clips/clean/
+test-clips/noise/
+test-clips/reference/
+test-clips/mixed/
+test-clips/_raw/
