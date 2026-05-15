@@ -33,12 +33,17 @@ const files = [
   'model_quant_dynamic_2.tflite',
 ];
 
-// Только non-threaded варианты tflite WASM. Threaded варианты вызывают
-// CPU starvation на main-thread ScriptProcessorNode (см. vite.config.ts).
-// dtln-web запросит threaded → 404 → fallback на cc_simd.
-for (const variant of ['cc', 'cc_simd']) {
+// Все 4 варианта tflite WASM. tflite-web feature-detection жёстко выбирает
+// конкретный по capabilities (simd × multiThreading) и НЕ fallback'ит на 404 →
+// нужны все. Зависание DTLN из-за threaded XNNPACK в прошлой итерации, скорее
+// всего, было следствием race-condition в pipeline (исправлено в P0 #1
+// opChain mutex), а не нагрузки worker thread'ов.
+for (const variant of ['cc', 'cc_simd', 'cc_threaded', 'cc_simd_threaded']) {
   files.push(`tflite_web_api_${variant}.wasm`);
   files.push(`tflite_web_api_${variant}.js`);
+  if (variant.endsWith('threaded')) {
+    files.push(`tflite_web_api_${variant}.worker.js`);
+  }
 }
 
 for (const f of files) {

@@ -29,8 +29,8 @@ export async function init(): Promise<Loaded> {
         // Self-host: default CDN библиотеки не отдаёт CORS-заголовки →
         // ассеты скачаны постинстолом в public/dfn3/, отдаём с того же origin.
         cdnUrl: '/dfn3',
-        attenuationLimit: 100, // максимальное подавление шума (default 50, спека до 100)
-        postFilterBeta: 0.02,  // лёгкий post-filter
+        attenuationLimit: 50, // default; 100 вызывает RuntimeError: unreachable в WASM
+        postFilterBeta: 0.02,
       });
       await denoiser.initialize();
       denoiser.startStreaming();
