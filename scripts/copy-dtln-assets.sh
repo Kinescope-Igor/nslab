@@ -18,9 +18,10 @@ fi
 
 mkdir -p "$DST"
 
-# Модели DTLN (default, без quant): model_1 + model_2 = ~4 MB.
-cp "$SRC/model_1.tflite" "$DST/"
-cp "$SRC/model_2.tflite" "$DST/"
+# Модели DTLN: quant=dynamic (~1 MB total) — в 2-3 раза легче по CPU,
+# чем full-precision. Для real-time-monitor через ScriptProcessorNode критично.
+cp "$SRC/model_quant_dynamic_1.tflite" "$DST/"
+cp "$SRC/model_quant_dynamic_2.tflite" "$DST/"
 
 # Все 4 варианта tflite WASM runtime + worker'ы для threaded-вариантов.
 for variant in cc cc_simd cc_threaded cc_simd_threaded; do
