@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "postinstall": "node scripts/copy-dtln-assets.mjs"
+    "postinstall": "node scripts/copy-dtln-assets.mjs && node scripts/download-dfn3-assets.mjs"
   },
   "devDependencies": {
     "typescript": "~5.6.3",

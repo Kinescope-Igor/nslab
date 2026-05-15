@@ -26,6 +26,9 @@ export async function init(): Promise<Loaded> {
     loadedPromise = (async () => {
       const { StandaloneDeepFilter } = await import('deepfilter-standalone');
       const denoiser = new StandaloneDeepFilter({
+        // Self-host: default CDN библиотеки не отдаёт CORS-заголовки →
+        // ассеты скачаны постинстолом в public/dfn3/, отдаём с того же origin.
+        cdnUrl: '/dfn3',
         attenuationLimit: 100, // максимальное подавление шума (default 50, спека до 100)
         postFilterBeta: 0.02,  // лёгкий post-filter
       });
