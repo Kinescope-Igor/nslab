@@ -52,12 +52,12 @@
           </div>
         </label>
 
-        <label class="mode-item disabled">
-          <md-radio name="mode" value="rnnoise" disabled></md-radio>
+        <label class="mode-item">
+          <md-radio name="mode" value="rnnoise"></md-radio>
           <div>
             <div class="body-large">RNNoise</div>
             <div class="body-small on-surface-variant">
-              Xiph/Mozilla, 2018 · TODO
+              Xiph/Mozilla, 2018 · @shiguredo/rnnoise-wasm
             </div>
           </div>
         </label>
@@ -97,6 +97,10 @@
           <div class="metric">
             <div class="label-small on-surface-variant">Sample rate</div>
             <div class="metric-value"><span id="m-sr">—</span> Hz</div>
+          </div>
+          <div class="metric">
+            <div class="label-small on-surface-variant">VAD</div>
+            <div class="metric-value"><span id="m-vad">—</span></div>
           </div>
         </div>
       </md-outlined-card>

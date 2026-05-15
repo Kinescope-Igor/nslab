@@ -14,9 +14,17 @@ const btnStop = $('#btn-stop') as HTMLButtonElement;
 const mState = $('#m-state') as HTMLSpanElement;
 const mRms = $('#m-rms') as HTMLSpanElement;
 const mSr = $('#m-sr') as HTMLSpanElement;
+const mVad = $('#m-vad') as HTMLSpanElement;
 
-// md-radio шлёт обычное change-событие на parent <label>
 const modeRadios = document.querySelectorAll<HTMLElement>('md-radio[name="mode"]');
+
+state.onRms = (dbfs) => {
+  mRms.textContent = dbfs.toFixed(1);
+};
+
+state.onVad = (vad) => {
+  if (mVad) mVad.textContent = vad.toFixed(2);
+};
 
 btnStart.addEventListener('click', async () => {
   btnStart.disabled = true;
@@ -27,13 +35,6 @@ btnStart.addEventListener('click', async () => {
     mState.textContent = 'running';
     mSr.textContent = String(state.context!.sampleRate);
     btnStop.disabled = false;
-
-    // Подписка на RMS-сообщения из worklet.
-    state.worklet!.port.onmessage = (e) => {
-      if (e.data?.type === 'rms') {
-        mRms.textContent = e.data.dbfs.toFixed(1);
-      }
-    };
   } catch (err) {
     console.error(err);
     mState.textContent = `error: ${(err as Error).message}`;
@@ -46,14 +47,22 @@ btnStop.addEventListener('click', async () => {
   mState.textContent = 'idle';
   mRms.textContent = '—';
   mSr.textContent = '—';
+  if (mVad) mVad.textContent = '—';
   btnStart.disabled = false;
   btnStop.disabled = true;
 });
 
 modeRadios.forEach((r) => {
-  r.addEventListener('change', () => {
+  r.addEventListener('change', async () => {
     const checked = (r as any).checked;
     const value = (r as any).value as Mode;
-    if (checked) setMode(value);
+    if (checked) {
+      try {
+        await setMode(value);
+      } catch (err) {
+        console.error('setMode failed', err);
+        mState.textContent = `mode error: ${(err as Error).message}`;
+      }
+    }
   });
 });

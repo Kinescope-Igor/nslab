@@ -1,12 +1,14 @@
 /**
- * Минимальный аудио-pipeline: mic → AudioWorkletNode → destination.
- * На текущем этапе используется только passthrough — проверка, что весь
- * каркас работает (microphone permission, AudioWorklet load, output не клипуется).
+ * Аудио-pipeline с hot-swap между NS-режимами.
  *
- * Дальше сюда подключаются worklets для RNNoise / DTLN / DFN-3 с hot-swap.
+ * raw         → passthrough worklet (нулевая обработка, low latency)
+ * rnnoise     → forwarder worklet + RNNoise в main thread
+ * dtln / dfn3 → forwarder worklet + соответствующий host (TODO)
  */
 
 import passthroughUrl from '../worklets/passthrough.js?url';
+import forwarderUrl from '../worklets/forwarder.js?url';
+import * as rnnoise from './rnnoise';
 
 export type Mode = 'raw' | 'rnnoise' | 'dtln' | 'dfn3';
 
@@ -16,6 +18,8 @@ export interface PipelineState {
   source: MediaStreamAudioSourceNode | null;
   worklet: AudioWorkletNode | null;
   mode: Mode;
+  onRms?: (dbfs: number) => void;
+  onVad?: (vad: number) => void;
 }
 
 export const state: PipelineState = {
@@ -26,6 +30,8 @@ export const state: PipelineState = {
   mode: 'raw',
 };
 
+let modulesLoaded = false;
+
 export async function start(): Promise<void> {
   if (state.context) return;
 
@@ -34,19 +40,21 @@ export async function start(): Promise<void> {
   state.stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       channelCount: 1,
-      // Отключаем браузерный APM — мы хотим тестировать ИМЕННО наши шумодавы,
-      // без подмеса WebRTC NS / AGC / AEC.
+      // Отключаем браузерный APM — мы тестируем ИМЕННО наши шумодавы.
       echoCancellation: false,
       noiseSuppression: false,
       autoGainControl: false,
     },
   });
 
-  await state.context.audioWorklet.addModule(passthroughUrl);
-  state.source = state.context.createMediaStreamSource(state.stream);
-  state.worklet = new AudioWorkletNode(state.context, 'passthrough-processor');
+  if (!modulesLoaded) {
+    await state.context.audioWorklet.addModule(passthroughUrl);
+    await state.context.audioWorklet.addModule(forwarderUrl);
+    modulesLoaded = true;
+  }
 
-  state.source.connect(state.worklet).connect(state.context.destination);
+  state.source = state.context.createMediaStreamSource(state.stream);
+  await applyMode(state.mode);
 }
 
 export async function stop(): Promise<void> {
@@ -61,7 +69,51 @@ export async function stop(): Promise<void> {
   state.worklet = null;
 }
 
-export function setMode(mode: Mode): void {
+export async function setMode(mode: Mode): Promise<void> {
   state.mode = mode;
-  // TODO: hot-swap между worklets (raw / rnnoise / dtln / dfn3) — после подключения шумодавов.
+  if (state.context && state.source) {
+    await applyMode(mode);
+  }
+}
+
+/** Создаёт worklet под выбранный режим, отключает старый, подключает новый. */
+async function applyMode(mode: Mode): Promise<void> {
+  if (!state.context || !state.source) return;
+
+  const oldWorklet = state.worklet;
+
+  let newWorklet: AudioWorkletNode;
+
+  if (mode === 'raw') {
+    newWorklet = new AudioWorkletNode(state.context, 'passthrough-processor');
+  } else if (mode === 'rnnoise') {
+    await rnnoise.init();
+    newWorklet = new AudioWorkletNode(state.context, 'forwarder-processor', {
+      processorOptions: { frameSize: rnnoise.FRAME_SIZE },
+    });
+    newWorklet.port.onmessage = async (e) => {
+      if (e.data?.type === 'frame') {
+        const frame = e.data.frame as Float32Array;
+        const vad = await rnnoise.processFrame(frame);
+        newWorklet.port.postMessage({ type: 'processed', frame }, [frame.buffer]);
+        state.onVad?.(vad);
+      } else if (e.data?.type === 'rms') {
+        state.onRms?.(e.data.dbfs);
+      }
+    };
+  } else {
+    // dtln / dfn3 — TODO
+    newWorklet = new AudioWorkletNode(state.context, 'passthrough-processor');
+  }
+
+  // Подвязываем RMS-канал для passthrough.
+  if (mode === 'raw') {
+    newWorklet.port.onmessage = (e) => {
+      if (e.data?.type === 'rms') state.onRms?.(e.data.dbfs);
+    };
+  }
+
+  state.source.connect(newWorklet).connect(state.context.destination);
+  oldWorklet?.disconnect();
+  state.worklet = newWorklet;
 }
