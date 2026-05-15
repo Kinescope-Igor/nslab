@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Копирует DTLN-runtime файлы из node_modules в public/dtln-web/.
 # Запускается автоматически через postinstall (см. package.json).
+#
+# @sapphi-red/dtln-web на старте определяет capabilities браузера и грузит
+# подходящий вариант: simd / simd_threaded (если есть SAB+COEP/COOP) и т.п.
+# Поэтому копируем все 4 варианта tflite-runtime + соответствующие worker'ы.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -13,8 +17,18 @@ if [[ ! -d "$SRC" ]]; then
 fi
 
 mkdir -p "$DST"
-cp "$SRC/model_1.tflite"                   "$DST/"
-cp "$SRC/model_2.tflite"                   "$DST/"
-cp "$SRC/tflite_web_api_cc_simd.js"        "$DST/"
-cp "$SRC/tflite_web_api_cc_simd.wasm"      "$DST/"
-echo "DTLN assets copied → $DST"
+
+# Модели DTLN (default, без quant): model_1 + model_2 = ~4 MB.
+cp "$SRC/model_1.tflite" "$DST/"
+cp "$SRC/model_2.tflite" "$DST/"
+
+# Все 4 варианта tflite WASM runtime + worker'ы для threaded-вариантов.
+for variant in cc cc_simd cc_threaded cc_simd_threaded; do
+  cp "$SRC/tflite_web_api_${variant}.wasm" "$DST/"
+  cp "$SRC/tflite_web_api_${variant}.js"   "$DST/"
+  if [[ "$variant" == *threaded ]]; then
+    cp "$SRC/tflite_web_api_${variant}.worker.js" "$DST/"
+  fi
+done
+
+echo "DTLN assets copied → $DST ($(ls "$DST" | wc -l | tr -d ' ') files, $(du -sh "$DST" | cut -f1))"
