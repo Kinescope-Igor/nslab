@@ -136,6 +136,17 @@ md-outlined-card {
   font-size: 24px;
 }
 
+/* Material Symbols в slot="icon" m3-кнопок: выровнять по центру с текстом.
+   По умолчанию глиф имеет crooked baseline, из-за чего смотрится «утоплено». */
+.material-symbols-outlined {
+  font-size: 18px;
+  line-height: 1;
+  vertical-align: middle;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* Controls */
 .controls {
   display: flex;
