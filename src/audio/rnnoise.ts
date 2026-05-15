@@ -16,6 +16,7 @@ interface Loaded {
 }
 
 let loadedPromise: Promise<Loaded> | null = null;
+let loadedSync: Loaded | null = null; // hot-path кэш после init
 
 export async function init(): Promise<Loaded> {
   if (!loadedPromise) {
@@ -23,11 +24,13 @@ export async function init(): Promise<Loaded> {
       const { Rnnoise } = await import('@shiguredo/rnnoise-wasm');
       const rnnoise = await Rnnoise.load();
       const state = rnnoise.createDenoiseState();
-      return {
+      const loaded: Loaded = {
         frameSize: rnnoise.frameSize,
         processFrame: (frame: Float32Array) => state.processFrame(frame),
         destroy: () => state.destroy(),
       };
+      loadedSync = loaded;
+      return loaded;
     })().catch((err) => {
       // Сбрасываем кэш, иначе следующий init() мгновенно вернёт rejected
       // promise без попытки реинициализации (404 / network blip → permanent fail).
@@ -38,12 +41,16 @@ export async function init(): Promise<Loaded> {
   return loadedPromise;
 }
 
-/** Обрабатывает фрейм in-place. Возвращает VAD [0..1]. */
-export async function processFrame(frame: Float32Array): Promise<number> {
-  const loaded = await init();
+/**
+ * Обрабатывает фрейм in-place. Возвращает VAD [0..1].
+ * Sync hot-path — без лишнего await на 100/сек вызовов после init.
+ * Если init ещё не завершился, бросает (вызывающий должен сначала await init()).
+ */
+export function processFrame(frame: Float32Array): number {
+  if (!loadedSync) throw new Error('rnnoise not initialised — await init() first');
   // Scale [-1, 1] → [-32768, 32767] (RNNoise ожидает 16-bit PCM в Float32).
   for (let i = 0; i < frame.length; i++) frame[i] *= 32768;
-  const vad = loaded.processFrame(frame);
+  const vad = loadedSync.processFrame(frame);
   // Обратно в [-1, 1].
   for (let i = 0; i < frame.length; i++) frame[i] /= 32768;
   return vad;
@@ -51,8 +58,9 @@ export async function processFrame(frame: Float32Array): Promise<number> {
 
 export async function destroy(): Promise<void> {
   if (loadedPromise) {
-    const loaded = await loadedPromise;
-    loaded.destroy();
+    const loaded = await loadedPromise.catch(() => null);
+    loaded?.destroy();
     loadedPromise = null;
+    loadedSync = null;
   }
 }

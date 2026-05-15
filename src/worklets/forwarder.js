@@ -6,16 +6,29 @@
  * дать main thread фору. Без этого первые ~50 ms будет underrun → клик/треск.
  *
  * Output дублируется на все каналы (микрофон моно, наушники стерео).
+ *
+ * Pool: вместо `new Float32Array(frameSize)` на каждые 10 ms используем пул
+ * буферов. Buffer уходит main-thread'у через transferable, после processFrame
+ * возвращается в outputQueue → реюз через pool.acquire(). Снимает ~100/сек
+ * аллокаций → меньше GC pause.
  */
 
 const PRE_ROLL_FRAMES = 4; // ~40 ms @ 48 kHz, frameSize=480
 const MAX_QUEUE_FRAMES = 12; // ~120 ms — drop-old policy против накопления при slow inference
+const POOL_SIZE = 16; // достаточно: pre-roll(4) + queue(12) — реальный максимум
 
 class Forwarder extends AudioWorkletProcessor {
   constructor(options) {
     super();
     this.frameSize = options.processorOptions?.frameSize ?? 480;
-    this.inputBuf = new Float32Array(this.frameSize);
+
+    // Pool: pre-allocate POOL_SIZE буферов, реюзаем по acquire/release.
+    this._pool = [];
+    for (let i = 0; i < POOL_SIZE; i++) {
+      this._pool.push(new Float32Array(this.frameSize));
+    }
+
+    this.inputBuf = this._pool.pop() ?? new Float32Array(this.frameSize);
     this.inputPos = 0;
     this.outputQueue = [];
     this.outputBuf = null;
@@ -36,10 +49,24 @@ class Forwarder extends AudioWorkletProcessor {
         // старые, оставляя свежие — пользователь слышит «прыжок» вместо
         // нарастающей задержки.
         while (this.outputQueue.length > MAX_QUEUE_FRAMES) {
-          this.outputQueue.shift();
+          const dropped = this.outputQueue.shift();
+          this._release(dropped);
         }
       }
     };
+  }
+
+  _acquire() {
+    return this._pool.pop() ?? new Float32Array(this.frameSize);
+  }
+
+  _release(buf) {
+    if (buf && buf.length === this.frameSize && this._pool.length < POOL_SIZE) {
+      // ArrayBuffer мог быть detach'нут transferable — проверяем.
+      if (buf.buffer.byteLength === this.frameSize * 4) {
+        this._pool.push(buf);
+      }
+    }
   }
 
   process(inputs, outputs) {
@@ -54,7 +81,7 @@ class Forwarder extends AudioWorkletProcessor {
       this.inputBuf[this.inputPos++] = input[i];
       if (this.inputPos === this.frameSize) {
         const frame = this.inputBuf;
-        this.inputBuf = new Float32Array(this.frameSize);
+        this.inputBuf = this._acquire();
         this.inputPos = 0;
         this.port.postMessage(
           { type: 'frame', id: this.frameId++, frame },
@@ -66,6 +93,7 @@ class Forwarder extends AudioWorkletProcessor {
     // 2. Заполняем output из outputQueue, дублируем на все каналы (моно → стерео).
     for (let i = 0; i < blockSize; i++) {
       if (!this.outputBuf || this.outputPos >= this.outputBuf.length) {
+        this._release(this.outputBuf);
         this.outputBuf = this.outputQueue.shift() ?? null;
         this.outputPos = 0;
       }

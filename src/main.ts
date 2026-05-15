@@ -17,13 +17,20 @@ const mSr = $('#m-sr') as HTMLSpanElement;
 const mVad = $('#m-vad') as HTMLSpanElement;
 
 const modeRadios = document.querySelectorAll<HTMLElement>('md-radio[name="mode"]');
+const modesContainer = document.querySelector('.modes-card')!;
+
+function resetMetrics() {
+  mRms.textContent = '—';
+  mVad.textContent = '—';
+}
 
 state.onRms = (dbfs) => {
   mRms.textContent = dbfs.toFixed(1);
 };
 
 state.onVad = (vad) => {
-  if (mVad) mVad.textContent = vad.toFixed(2);
+  // У DTLN/passthrough VAD нет — pipeline шлёт NaN. Показываем '—', не "NaN".
+  mVad.textContent = Number.isFinite(vad) ? vad.toFixed(2) : '—';
 };
 
 btnStart.addEventListener('click', async () => {
@@ -38,6 +45,7 @@ btnStart.addEventListener('click', async () => {
   } catch (err) {
     console.error(err);
     mState.textContent = `error: ${(err as Error).message}`;
+    resetMetrics();
     btnStart.disabled = false;
   }
 });
@@ -45,24 +53,31 @@ btnStart.addEventListener('click', async () => {
 btnStop.addEventListener('click', async () => {
   await stop();
   mState.textContent = 'idle';
-  mRms.textContent = '—';
   mSr.textContent = '—';
-  if (mVad) mVad.textContent = '—';
+  resetMetrics();
   btnStart.disabled = false;
   btnStop.disabled = true;
 });
 
-modeRadios.forEach((r) => {
-  r.addEventListener('change', async () => {
-    const checked = (r as any).checked;
-    const value = (r as any).value as Mode;
-    if (checked) {
-      try {
-        await setMode(value);
-      } catch (err) {
-        console.error('setMode failed', err);
-        mState.textContent = `mode error: ${(err as Error).message}`;
-      }
-    }
-  });
+// Type-safe radio handler через делегирование на контейнер: ловим change с
+// конкретного <md-radio>, читаем .value напрямую с target. Без `as any`.
+modesContainer.addEventListener('change', async (event) => {
+  const target = event.target as HTMLElement & { name?: string; value?: string; checked?: boolean };
+  if (target.tagName?.toLowerCase() !== 'md-radio') return;
+  if (target.name !== 'mode' || !target.checked || !target.value) return;
+  const value = target.value as Mode;
+
+  try {
+    await setMode(value);
+    // Сбросим VAD до нового тика — иначе UI на момент свапа может показывать
+    // старое значение от предыдущего режима (особенно при переходе в DTLN).
+    mVad.textContent = '—';
+  } catch (err) {
+    console.error('setMode failed', err);
+    mState.textContent = `mode error: ${(err as Error).message}`;
+    resetMetrics();
+  }
 });
+
+// Не используем переменную, но оставляем — на случай прямого доступа из консоли.
+void modeRadios;

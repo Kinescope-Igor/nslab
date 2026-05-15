@@ -173,12 +173,13 @@ async function applyMode(mode: Mode): Promise<void> {
     (w as any).__markStale = () => {
       isStale = true;
     };
-    w.port.onmessage = async (e) => {
+    w.port.onmessage = (e) => {
       if (isStale) return;
       if (e.data?.type === 'frame') {
         const frame = e.data.frame as Float32Array;
-        const vad = await rnnoise.processFrame(frame);
-        if (isStale) return;
+        // Sync — после init() RNNoise зовётся напрямую, без microtask на каждый
+        // фрейм (100/сек). isStale проверяется только до — после нет await.
+        const vad = rnnoise.processFrame(frame);
         w.port.postMessage({ type: 'processed', frame }, [frame.buffer]);
         state.onVad?.(vad);
       } else if (e.data?.type === 'rms') {
