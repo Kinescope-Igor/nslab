@@ -21,9 +21,9 @@ export async function init(): Promise<DtlnApi> {
     apiPromise = (async () => {
       const m = await import('@sapphi-red/dtln-web');
       await m.setup('/dtln-web/');
-      // quant=dynamic — ~1/3 веса полной модели, в ~2-3x быстрее по CPU.
-      // Для real-time через ScriptProcessorNode (main thread) критично.
-      await m.loadModel({ path: '/dtln-web/', quant: 'dynamic' });
+      // full-precision — DNSMOS теперь в Worker, главный thread свободен,
+      // должен потянуть. Качество заметно выше quant_dynamic.
+      await m.loadModel({ path: '/dtln-web/' });
       return {
         sampleRate: m.sampleRate,
         createNode: (ctx: BaseAudioContext) =>

@@ -27,10 +27,11 @@ if (!existsSync(SRC)) {
 mkdirSync(DST, { recursive: true });
 
 const files = [
-  // Модели DTLN: quant=dynamic (~1 MB total) — в 2-3 раза легче по CPU,
-  // чем full-precision. Для real-time-monitor через ScriptProcessorNode критично.
-  'model_quant_dynamic_1.tflite',
-  'model_quant_dynamic_2.tflite',
+  // Модели DTLN: full-precision (~4 MB total). После того как DNSMOS уехал
+  // в Worker (главный thread свободен), full-precision должен потянуть и
+  // даёт заметно лучше качество, чем quant_dynamic.
+  'model_1.tflite',
+  'model_2.tflite',
 ];
 
 // Все 4 варианта tflite WASM. tflite-web feature-detection жёстко выбирает

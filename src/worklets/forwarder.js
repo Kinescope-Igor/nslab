@@ -13,9 +13,11 @@
  * аллокаций → меньше GC pause.
  */
 
-const PRE_ROLL_FRAMES = 4; // ~40 ms @ 48 kHz, frameSize=480
-const MAX_QUEUE_FRAMES = 12; // ~120 ms — drop-old policy против накопления при slow inference
-const POOL_SIZE = 16; // достаточно: pre-roll(4) + queue(12) — реальный максимум
+// Эксперименты A+B: drop-old → bound выше, pre-roll → 1 (минимум для buffer).
+// Чтобы убрать «булькающий» / прерывистый звук на готовых семплах.
+const PRE_ROLL_FRAMES = 1;       // было 4 → 40 ms лишней задержки + возможное «сжатие» речи
+const MAX_QUEUE_FRAMES = 30;     // было 12 → агрессивный drop при минимальном jitter; теперь только аварийный
+const POOL_SIZE = 32;            // pool под обновлённый MAX
 
 class Forwarder extends AudioWorkletProcessor {
   constructor(options) {
