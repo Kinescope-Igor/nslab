@@ -53,12 +53,20 @@ export async function init(): Promise<void> {
   await sessionPromise;
 }
 
-/** Считает MOS на буфере 16 kHz моно. Если буфер короче 9 sec — повторяет. */
+/**
+ * Считает MOS на ОДНОМ последнем 9-sec окне буфера 16 kHz моно.
+ *
+ * Ранее усредняли по всем окнам (как dnsmos_local.py для batch-оценки файла),
+ * но в real-time это блокировало main thread на 200-800 ms каждые 3 sec и
+ * убивало spectrogram. Single window даёт ту же точность (DNSMOS не сильно
+ * варьируется внутри 12 sec речи) при 1 inference вместо 3-4.
+ *
+ * Если буфер короче 9 sec — повторяет до достижения нужной длины.
+ */
 export async function score(audio16k: Float32Array): Promise<MosScore> {
   if (!sessionPromise) throw new Error('dnsmos not initialised');
   const session = await sessionPromise;
 
-  // Pad повторами, если короче нужного окна (как в reference Python).
   let audio = audio16k;
   while (audio.length < INPUT_SAMPLES) {
     const merged = new Float32Array(audio.length * 2);
@@ -67,33 +75,18 @@ export async function score(audio16k: Float32Array): Promise<MosScore> {
     audio = merged;
   }
 
-  // Скользящее окно с шагом 1 sec.
-  const hopSamples = TARGET_SR;
-  const numHops = Math.max(1, Math.floor(audio.length / TARGET_SR) - INPUT_LENGTH_SEC + 1);
+  // Берём ровно последние 9.01 sec.
+  const seg = audio.subarray(audio.length - INPUT_SAMPLES, audio.length);
 
-  let sumSig = 0, sumBak = 0, sumOvr = 0, count = 0;
-
-  for (let i = 0; i < numHops; i++) {
-    const start = Math.floor(i * hopSamples);
-    const end = start + INPUT_SAMPLES;
-    if (end > audio.length) break;
-    const seg = audio.subarray(start, end);
-
-    const tensor = new ort.Tensor('float32', seg, [1, seg.length]);
-    const out = await session.run({ input_1: tensor });
-    const result = out[Object.keys(out)[0]];
-    const data = result.data as Float32Array;
-    // ONNX output: [1, 3] → [sig_raw, bak_raw, ovr_raw]
-    sumSig += polyEval(COEFFS_SIG, data[0]);
-    sumBak += polyEval(COEFFS_BAK, data[1]);
-    sumOvr += polyEval(COEFFS_OVR, data[2]);
-    count++;
-  }
+  const tensor = new ort.Tensor('float32', seg, [1, seg.length]);
+  const out = await session.run({ input_1: tensor });
+  const result = out[Object.keys(out)[0]];
+  const data = result.data as Float32Array;
 
   return {
-    sig: sumSig / count,
-    bak: sumBak / count,
-    ovr: sumOvr / count,
-    segments: count,
+    sig: polyEval(COEFFS_SIG, data[0]),
+    bak: polyEval(COEFFS_BAK, data[1]),
+    ovr: polyEval(COEFFS_OVR, data[2]),
+    segments: 1,
   };
 }
