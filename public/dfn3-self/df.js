@@ -395,3 +395,8 @@ async function __wbg_init(input) {
 wasm_bindgen = Object.assign(__wbg_init, { initSync }, __exports);
 
 })();
+
+// Patch: wasm-pack --target no-modules объявляет `let wasm_bindgen` на верхнем
+// уровне скрипта; такой let НЕ становится свойством globalThis (только var/function).
+// dfn3.ts читает через globalThis.wasm_bindgen — экспортируем явно.
+globalThis.wasm_bindgen = wasm_bindgen;
