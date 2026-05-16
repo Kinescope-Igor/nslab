@@ -61,7 +61,8 @@ async function resampleTo16k(samples: Float32Array, srcRate: number): Promise<Fl
 
 function startMosLoop() {
   if (mosTimer !== null) return;
-  // Первая оценка — через 9 sec (нужно набрать буфер); далее каждые 3 sec.
+  // Inference выполняется в Web Worker (src/workers/dnsmos-worker.ts) —
+  // main thread не блокируется, RAF/AudioWorklet остаются плавными.
   mosTimer = window.setTimeout(function tick() {
     runMosOnce();
     mosTimer = window.setTimeout(tick, 3000);
@@ -105,7 +106,6 @@ async function runMosOnce() {
   }
 
   try {
-    await dnsmos.init();
     const audio16k = await resampleTo16k(snapshot.samples, snapshot.sampleRate);
     const result = await dnsmos.score(audio16k);
     mSig.textContent = result.sig.toFixed(2);
