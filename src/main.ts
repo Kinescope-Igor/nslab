@@ -45,20 +45,6 @@ function resetMetrics() {
 let mosTimer: number | null = null;
 let mosBusy = false;
 
-async function resampleTo16k(samples: Float32Array, srcRate: number): Promise<Float32Array> {
-  if (srcRate === dnsmos.TARGET_SR) return samples;
-  const ratio = dnsmos.TARGET_SR / srcRate;
-  const ctx = new OfflineAudioContext(1, Math.ceil(samples.length * ratio), dnsmos.TARGET_SR);
-  const buf = ctx.createBuffer(1, samples.length, srcRate);
-  buf.copyToChannel(samples, 0);
-  const src = ctx.createBufferSource();
-  src.buffer = buf;
-  src.connect(ctx.destination);
-  src.start();
-  const rendered = await ctx.startRendering();
-  return rendered.getChannelData(0).slice();
-}
-
 function startMosLoop() {
   if (mosTimer !== null) return;
   // Inference выполняется в Web Worker (src/workers/dnsmos-worker.ts) —
@@ -106,8 +92,8 @@ async function runMosOnce() {
   }
 
   try {
-    const audio16k = await resampleTo16k(snapshot.samples, snapshot.sampleRate);
-    const result = await dnsmos.score(audio16k);
+    // Resample выполняется внутри dnsmos worker — main thread free.
+    const result = await dnsmos.score(snapshot.samples, snapshot.sampleRate);
     mSig.textContent = result.sig.toFixed(2);
     mBak.textContent = result.bak.toFixed(2);
     mOvr.textContent = result.ovr.toFixed(2);

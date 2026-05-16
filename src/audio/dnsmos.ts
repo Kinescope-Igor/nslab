@@ -45,13 +45,21 @@ export async function init(): Promise<void> {
   ensureWorker();
 }
 
-export function score(audio16k: Float32Array): Promise<MosScore> {
+/**
+ * Считает MOS на буфере произвольного sample rate.
+ * Resample 48→16 (или любой другой) делается ВНУТРИ worker'а, чтобы main
+ * thread не блокировался → forwarder port-queue от RNNoise/DFN не накапливает
+ * burst → output плавный.
+ */
+export function score(samples: Float32Array, sourceSampleRate: number): Promise<MosScore> {
   const w = ensureWorker();
   const id = nextId++;
   return new Promise<MosScore>((resolve, reject) => {
     pending.set(id, { resolve, reject });
-    // Transfer ownership — без копии больших Float32Array через границу worker'а.
-    w.postMessage({ type: 'score', id, samples: audio16k, modelUrl: MODEL_URL }, [audio16k.buffer]);
+    w.postMessage(
+      { type: 'score', id, samples, sourceSampleRate, modelUrl: MODEL_URL },
+      [samples.buffer],
+    );
   });
 }
 

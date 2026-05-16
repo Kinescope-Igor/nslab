@@ -39,7 +39,33 @@ interface ScoreRequest {
   type: 'score';
   id: number;
   samples: Float32Array;
+  sourceSampleRate: number;
   modelUrl: string;
+}
+
+/**
+ * Простой anti-alias-decimate downsample: усреднение полу-окном.
+ * Для DNSMOS approximation достаточно — потеря MOS-точности минимальная,
+ * выигрыш в том, что resample делается в worker (а не через
+ * OfflineAudioContext в main thread, что вызывало spike-блокировку).
+ */
+function downsample(input: Float32Array, srcRate: number, dstRate: number): Float32Array {
+  if (srcRate === dstRate) return input;
+  const ratio = srcRate / dstRate;
+  const outputLen = Math.floor(input.length / ratio);
+  const output = new Float32Array(outputLen);
+  for (let i = 0; i < outputLen; i++) {
+    const srcStart = Math.floor(i * ratio);
+    const srcEnd = Math.min(input.length, Math.floor((i + 1) * ratio));
+    let sum = 0;
+    let count = 0;
+    for (let j = srcStart; j < srcEnd; j++) {
+      sum += input[j];
+      count++;
+    }
+    output[i] = count > 0 ? sum / count : 0;
+  }
+  return output;
 }
 
 self.onmessage = async (e: MessageEvent<ScoreRequest>) => {
@@ -49,7 +75,10 @@ self.onmessage = async (e: MessageEvent<ScoreRequest>) => {
   try {
     const session = await getSession(msg.modelUrl);
 
-    let audio = msg.samples;
+    // Resample внутри worker (раньше делалось через OfflineAudioContext в main,
+    // что давало регулярные блокировки → прерывистый output).
+    let audio = downsample(msg.samples, msg.sourceSampleRate, TARGET_SR);
+
     while (audio.length < INPUT_SAMPLES) {
       const merged = new Float32Array(audio.length * 2);
       merged.set(audio, 0);
