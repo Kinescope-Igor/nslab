@@ -10,6 +10,9 @@ public/dtln-web/
 # DFN-3 assets downloaded via postinstall (scripts/download-dfn3-assets.mjs)
 public/dfn3/
 
+# DNSMOS model downloaded via postinstall (scripts/download-dnsmos-assets.mjs)
+public/dnsmos/
+
 # Test clips — скачиваются по требованию через test-clips/download.sh, в репо не лежат.
 test-clips/clean/
 test-clips/noise/

@@ -22,6 +22,7 @@
 
 import passthroughUrl from '../worklets/passthrough.js?url';
 import forwarderUrl from '../worklets/forwarder.js?url';
+import captureUrl from '../worklets/capture.js?url';
 import * as rnnoise from './rnnoise';
 import * as dtln from './dtln';
 import * as dfn3 from './dfn3';
@@ -46,6 +47,7 @@ export interface PipelineState {
   node: AudioNode | null;
   analyser: AnalyserNode | null;
   recorderDest: MediaStreamAudioDestinationNode | null;
+  capture: AudioWorkletNode | null;
   mode: Mode;
   sourceConfig: SourceConfig;
   onRms?: (dbfs: number) => void;
@@ -59,6 +61,7 @@ export const state: PipelineState = {
   node: null,
   analyser: null,
   recorderDest: null,
+  capture: null,
   mode: 'raw',
   sourceConfig: { kind: 'mic' },
 };
@@ -119,6 +122,10 @@ async function teardown(): Promise<void> {
   state.source?.disconnect();
   state.analyser?.disconnect();
   state.recorderDest?.disconnect();
+  if (state.capture) {
+    state.capture.port.onmessage = null;
+    state.capture.disconnect();
+  }
   state.stream?.getTracks().forEach((t) => t.stop());
   await state.context?.close();
 
@@ -130,6 +137,7 @@ async function teardown(): Promise<void> {
   state.node = null;
   state.analyser = null;
   state.recorderDest = null;
+  state.capture = null;
 }
 
 async function reinitContext(mode: Mode): Promise<void> {
@@ -148,6 +156,11 @@ async function reinitContext(mode: Mode): Promise<void> {
   state.analyser.fftSize = 1024;
   state.analyser.smoothingTimeConstant = 0.6;
   state.recorderDest = context.createMediaStreamDestination();
+
+  await context.audioWorklet.addModule(captureUrl);
+  state.capture = new AudioWorkletNode(context, 'capture-processor', {
+    processorOptions: { sampleRate: context.sampleRate },
+  });
 
   await reinitSource();
   await applyMode(mode);
@@ -191,7 +204,7 @@ async function reinitSource(): Promise<void> {
 }
 
 async function applyMode(mode: Mode): Promise<void> {
-  if (!state.context || !state.source || !state.analyser || !state.recorderDest) return;
+  if (!state.context || !state.source || !state.analyser || !state.recorderDest || !state.capture) return;
 
   if (state.node) {
     if ('port' in state.node) {
@@ -272,10 +285,11 @@ async function applyMode(mode: Mode): Promise<void> {
     newNode = new AudioWorkletNode(state.context, 'passthrough-processor');
   }
 
-  // Source → node → destination, плюс параллельные ветки analyser + recorderDest.
+  // Source → node → destination, плюс параллельные ветки analyser, recorderDest, capture.
   state.source.connect(newNode);
   newNode.connect(state.context.destination);
   newNode.connect(state.analyser);
   newNode.connect(state.recorderDest);
+  newNode.connect(state.capture);
   state.node = newNode;
 }

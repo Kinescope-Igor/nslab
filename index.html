@@ -128,6 +128,32 @@
       </md-outlined-card>
 
       <md-outlined-card class="metrics-card">
+        <h3 class="title-medium">DNSMOS P.835</h3>
+        <div class="metrics-row">
+          <div class="metric">
+            <div class="label-small on-surface-variant">SIG</div>
+            <div class="metric-value"><span id="m-sig">—</span></div>
+            <div class="label-small on-surface-variant">качество речи</div>
+          </div>
+          <div class="metric">
+            <div class="label-small on-surface-variant">BAK</div>
+            <div class="metric-value"><span id="m-bak">—</span></div>
+            <div class="label-small on-surface-variant">подавление шума</div>
+          </div>
+          <div class="metric">
+            <div class="label-small on-surface-variant">OVRL</div>
+            <div class="metric-value"><span id="m-ovr">—</span></div>
+            <div class="label-small on-surface-variant">общее (1–5)</div>
+          </div>
+        </div>
+        <p class="body-small on-surface-variant spec-hint">
+          Microsoft DNS-Challenge модель, оценивает по шкале 1–5 (выше — лучше).
+          Обновляется каждые 3 sec на скользящем 9-sec окне обработанного звука.
+          Статус: <span id="mos-status">ожидание данных</span>.
+        </p>
+      </md-outlined-card>
+
+      <md-outlined-card class="metrics-card">
         <h3 class="title-medium">Метрики</h3>
         <div class="metrics-row">
           <div class="metric">
