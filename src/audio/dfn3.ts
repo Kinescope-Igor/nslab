@@ -10,7 +10,11 @@
  * Ассеты в public/dfn3-self/:
  *  - df.js          — wasm-bindgen JS-glue (no-modules target → IIFE)
  *  - df_bg.wasm     — наша сборка через `wasm-pack build libDF --target no-modules --features wasm`
- *  - DeepFilterNet3_onnx.tar.gz — pretrained веса (из models/ репо автора)
+ *  - DeepFilterNet3_onnx.bin — pretrained веса из models/ репо автора.
+ *    Это РОВНО тот же gzipped tar, что у Rikorose, переименованный из
+ *    .tar.gz в .bin чтобы Vite/sirv не отдавал `Content-Encoding: gzip`
+ *    (браузер тогда сам распаковывает body → GzDecoder в Rust ругается
+ *    «invalid gzip header»).
  *
  * API (из df.d.ts):
  *  - wasm_bindgen(wasmUrl)                                    — init
@@ -24,7 +28,7 @@
 
 const DF_JS_URL = '/dfn3-self/df.js';
 const DF_WASM_URL = '/dfn3-self/df_bg.wasm';
-const DF_MODEL_URL = '/dfn3-self/DeepFilterNet3_onnx.tar.gz';
+const DF_MODEL_URL = '/dfn3-self/DeepFilterNet3_onnx.bin';
 
 interface DfBindings {
   (wasmUrl: string): Promise<unknown>;
