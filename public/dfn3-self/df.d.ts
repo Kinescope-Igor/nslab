@@ -2,20 +2,6 @@ declare namespace wasm_bindgen {
 	/* tslint:disable */
 	/* eslint-disable */
 	/**
-	* Create a DeepFilterNet Model
-	*
-	* Args:
-	*     - path: File path to a DeepFilterNet tar.gz onnx model
-	*     - atten_lim: Attenuation limit in dB.
-	*
-	* Returns:
-	*     - DF state doing the full processing: stft, DNN noise reduction, istft.
-	* @param {Uint8Array} model_bytes
-	* @param {number} atten_lim
-	* @returns {number}
-	*/
-	export function df_create(model_bytes: Uint8Array, atten_lim: number): number;
-	/**
 	* Set DeepFilterNet post filter beta. A beta of 0 disables the post filter.
 	*
 	* Args:
@@ -24,21 +10,6 @@ declare namespace wasm_bindgen {
 	* @param {number} beta
 	*/
 	export function df_set_post_filter_beta(st: number, beta: number): void;
-	/**
-	* Set DeepFilterNet attenuation limit.
-	*
-	* Args:
-	*     - lim_db: New attenuation limit in dB.
-	* @param {number} st
-	* @param {number} lim_db
-	*/
-	export function df_set_atten_lim(st: number, lim_db: number): void;
-	/**
-	* Get DeepFilterNet frame size in samples.
-	* @param {number} st
-	* @returns {number}
-	*/
-	export function df_get_frame_length(st: number): number;
 	/**
 	* Processes a chunk of samples.
 	*
@@ -54,6 +25,38 @@ declare namespace wasm_bindgen {
 	* @returns {Float32Array}
 	*/
 	export function df_process_frame(st: number, input: Float32Array): Float32Array;
+	/**
+	* Set DeepFilterNet attenuation limit.
+	*
+	* Args:
+	*     - lim_db: New attenuation limit in dB.
+	* @param {number} st
+	* @param {number} lim_db
+	*/
+	export function df_set_atten_lim(st: number, lim_db: number): void;
+	/**
+	*/
+	export function init_panic_hook(): void;
+	/**
+	* Create a DeepFilterNet Model
+	*
+	* Args:
+	*     - path: File path to a DeepFilterNet tar.gz onnx model
+	*     - atten_lim: Attenuation limit in dB.
+	*
+	* Returns:
+	*     - DF state doing the full processing: stft, DNN noise reduction, istft.
+	* @param {Uint8Array} model_bytes
+	* @param {number} atten_lim
+	* @returns {number}
+	*/
+	export function df_create(model_bytes: Uint8Array, atten_lim: number): number;
+	/**
+	* Get DeepFilterNet frame size in samples.
+	* @param {number} st
+	* @returns {number}
+	*/
+	export function df_get_frame_length(st: number): number;
 	/**
 	*/
 	export class DFState {
@@ -72,8 +75,12 @@ declare interface InitOutput {
   readonly df_process_frame: (a: number, b: number, c: number) => number;
   readonly df_set_atten_lim: (a: number, b: number) => void;
   readonly df_set_post_filter_beta: (a: number, b: number) => void;
+  readonly init_panic_hook: () => void;
   readonly __wbindgen_malloc: (a: number, b: number) => number;
+  readonly __wbindgen_free: (a: number, b: number, c: number) => void;
+  readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
   readonly __wbindgen_exn_store: (a: number) => void;
+  readonly __wbindgen_start: () => void;
 }
 
 /**
