@@ -191,6 +191,33 @@ md-outlined-card {
   margin-top: 4px;
 }
 
+/* Source select */
+.source-row { margin-bottom: 8px; }
+.source-row md-outlined-select { width: 100%; }
+.src-hint { margin: 8px 0 0; }
+
+/* Spectrogram canvas */
+.spectrogram {
+  width: 100%;
+  display: block;
+  border-radius: 8px;
+  background: rgb(10, 10, 20);
+  image-rendering: pixelated;
+}
+.spec-hint { margin: 8px 0 0; }
+
+/* Record button — красный + пульсация во время записи */
+md-outlined-button#btn-record.recording {
+  --md-outlined-button-label-text-color: var(--md-sys-color-error);
+  --md-outlined-button-with-icon-icon-color: var(--md-sys-color-error);
+  --md-outlined-button-outline-color: var(--md-sys-color-error);
+  animation: pulse 1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
 footer {
   margin-top: 32px;
   text-align: center;

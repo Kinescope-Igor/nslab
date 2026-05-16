@@ -1,16 +1,23 @@
 /**
- * Аудио-pipeline с hot-swap между NS-режимами.
+ * Аудио-pipeline с hot-swap между NS-режимами и поддержкой двух источников.
  *
- * raw         → 48 kHz AudioContext + passthrough worklet
- * rnnoise     → 48 kHz AudioContext + forwarder worklet + RNNoise в main thread
- * dtln        → 16 kHz AudioContext + ScriptProcessorNode (TFLite DTLN)
- * dfn3        → TODO
+ * Источники:
+ *   mic  — MediaStreamAudioSourceNode (микрофон)
+ *   file — AudioBufferSourceNode (loop) на готовом sample clip из public/clips/
+ *
+ * Режимы шумодава:
+ *   raw     → 48 kHz AudioContext + passthrough worklet
+ *   rnnoise → 48 kHz + forwarder worklet + RNNoise в main thread
+ *   dtln    → 16 kHz + ScriptProcessorNode (TFLite DTLN)
+ *   dfn3    → отключён (TODO: WASM trap, см. README)
  *
  * Так как RNNoise требует 48 kHz, а DTLN — 16 kHz, при смене режима
  * пересоздаём AudioContext с правильным sampleRate.
  *
- * Все публичные операции (start / stop / setMode) сериализуются через
- * opChain — иначе два параллельных вызова перетирают state.
+ * Параллельно к destination звук уходит в analyser (для spectrogram) и в
+ * recorderDest (MediaStreamAudioDestinationNode для записи через MediaRecorder).
+ *
+ * Все публичные операции сериализуются через opChain.
  */
 
 import passthroughUrl from '../worklets/passthrough.js?url';
@@ -20,6 +27,10 @@ import * as dtln from './dtln';
 import * as dfn3 from './dfn3';
 
 export type Mode = 'raw' | 'rnnoise' | 'dtln' | 'dfn3';
+
+export type SourceConfig =
+  | { kind: 'mic' }
+  | { kind: 'file'; url: string };
 
 const SAMPLE_RATE: Record<Mode, number> = {
   raw: 48000,
@@ -31,9 +42,12 @@ const SAMPLE_RATE: Record<Mode, number> = {
 export interface PipelineState {
   context: AudioContext | null;
   stream: MediaStream | null;
-  source: MediaStreamAudioSourceNode | null;
+  source: AudioNode | null;
   node: AudioNode | null;
+  analyser: AnalyserNode | null;
+  recorderDest: MediaStreamAudioDestinationNode | null;
   mode: Mode;
+  sourceConfig: SourceConfig;
   onRms?: (dbfs: number) => void;
   onVad?: (vad: number) => void;
 }
@@ -43,11 +57,12 @@ export const state: PipelineState = {
   stream: null,
   source: null,
   node: null,
+  analyser: null,
+  recorderDest: null,
   mode: 'raw',
+  sourceConfig: { kind: 'mic' },
 };
 
-// Сериализатор операций: каждая публичная функция выполняется только после
-// завершения предыдущей. Ошибки в op'ах не блокируют chain.
 let opChain: Promise<void> = Promise.resolve();
 function enqueue<T>(fn: () => Promise<T>): Promise<T> {
   const next = opChain.then(fn, fn);
@@ -84,68 +99,104 @@ export function setMode(mode: Mode): Promise<void> {
   });
 }
 
+export function setSource(cfg: SourceConfig): Promise<void> {
+  return enqueue(async () => {
+    state.sourceConfig = cfg;
+    if (!state.context) return;
+    await reinitSource();
+  });
+}
+
 async function teardown(): Promise<void> {
-  // Снимаем обработчики port — closure не должен дёргать state после disconnect.
   if (state.node && 'port' in state.node) {
     (state.node as AudioWorkletNode).port.onmessage = null;
   }
   state.node?.disconnect();
+  // BufferSource нужно явно остановить, иначе ресурс висит в audio thread.
+  if (state.source instanceof AudioBufferSourceNode) {
+    try { state.source.stop(); } catch { /* already stopped */ }
+  }
   state.source?.disconnect();
+  state.analyser?.disconnect();
+  state.recorderDest?.disconnect();
   state.stream?.getTracks().forEach((t) => t.stop());
   await state.context?.close();
 
-  // Освобождаем WASM-память моделей (RNNoise держит DenoiseState в WASM heap;
-  // DFN-3 — TFLite-runtime + buffers).
-  // dtln-web сам управляет жизненным циклом TFLite через own context.
   await Promise.all([rnnoise.destroy().catch(() => {}), dfn3.destroy().catch(() => {})]);
 
   state.context = null;
   state.stream = null;
   state.source = null;
   state.node = null;
+  state.analyser = null;
+  state.recorderDest = null;
 }
 
 async function reinitContext(mode: Mode): Promise<void> {
-  // 1. Сначала запрашиваем mic. Если permission denied — throw до создания
-  //    AudioContext, state остаётся нулевым → следующий start() сработает.
-  const stream = await navigator.mediaDevices.getUserMedia({
-    audio: {
-      channelCount: 1,
-      // Отключаем браузерный APM — мы тестируем ИМЕННО наши шумодавы.
-      echoCancellation: false,
-      noiseSuppression: false,
-      autoGainControl: false,
-    },
-  });
-
-  // 2. Создаём context (если на этом этапе кто-то отменит — освобождаем mic).
+  // Сначала источник — если getUserMedia denied / fetch упал, нет осиротевшего context.
   let context: AudioContext;
   try {
     context = new AudioContext({ sampleRate: SAMPLE_RATE[mode] });
     await context.audioWorklet.addModule(passthroughUrl);
     await context.audioWorklet.addModule(forwarderUrl);
   } catch (err) {
-    stream.getTracks().forEach((t) => t.stop());
     throw err;
   }
 
   state.context = context;
-  state.stream = stream;
-  state.source = context.createMediaStreamSource(stream);
+  state.analyser = context.createAnalyser();
+  state.analyser.fftSize = 1024;
+  state.analyser.smoothingTimeConstant = 0.6;
+  state.recorderDest = context.createMediaStreamDestination();
+
+  await reinitSource();
   await applyMode(mode);
 }
 
-async function applyMode(mode: Mode): Promise<void> {
-  if (!state.context || !state.source) return;
+async function reinitSource(): Promise<void> {
+  if (!state.context) return;
 
-  // 1. СНАЧАЛА разрываем старую цепочку — иначе на момент swap source отдаёт
-  //    звук в обе цепочки и юзер слышит сумму raw + denoised.
+  // Discard old source.
+  if (state.source instanceof AudioBufferSourceNode) {
+    try { state.source.stop(); } catch { /* */ }
+  }
+  state.source?.disconnect();
+  state.stream?.getTracks().forEach((t) => t.stop());
+  state.stream = null;
+
+  if (state.sourceConfig.kind === 'mic') {
+    state.stream = await navigator.mediaDevices.getUserMedia({
+      audio: {
+        channelCount: 1,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
+    });
+    state.source = state.context.createMediaStreamSource(state.stream);
+  } else {
+    const arrayBuffer = await fetch(state.sourceConfig.url).then((r) => r.arrayBuffer());
+    const audioBuffer = await state.context.decodeAudioData(arrayBuffer);
+    const node = state.context.createBufferSource();
+    node.buffer = audioBuffer;
+    node.loop = true;
+    node.start();
+    state.source = node;
+  }
+
+  // Если node уже подключён — переподключим source к нему.
+  if (state.node) {
+    state.source.connect(state.node);
+  }
+}
+
+async function applyMode(mode: Mode): Promise<void> {
+  if (!state.context || !state.source || !state.analyser || !state.recorderDest) return;
+
   if (state.node) {
     if ('port' in state.node) {
       (state.node as AudioWorkletNode).port.onmessage = null;
     }
-    // Помечаем in-flight async-обработчики как stale — не дать им перетереть
-    // state нового режима после swap.
     if ('__markStale' in state.node) {
       (state.node as { __markStale?: () => void }).__markStale?.();
     }
@@ -154,7 +205,6 @@ async function applyMode(mode: Mode): Promise<void> {
   state.node?.disconnect();
   state.node = null;
 
-  // 2. Создаём новый узел и инициализируем модель (если нужно).
   let newNode: AudioNode;
 
   if (mode === 'raw') {
@@ -168,19 +218,12 @@ async function applyMode(mode: Mode): Promise<void> {
     const w = new AudioWorkletNode(state.context, 'forwarder-processor', {
       processorOptions: { frameSize: loaded.frameSize },
     });
-    // isStale защищает от ситуации, когда asyncprocessFrame() ещё в полёте,
-    // а пользователь уже свапнул режим: in-flight результат не должен ни
-    // обновлять onVad (перетрёт показания нового), ни писать в закрытый port.
     let isStale = false;
-    (w as any).__markStale = () => {
-      isStale = true;
-    };
+    (w as any).__markStale = () => { isStale = true; };
     w.port.onmessage = (e) => {
       if (isStale) return;
       if (e.data?.type === 'frame') {
         const frame = e.data.frame as Float32Array;
-        // Sync — после init() RNNoise зовётся напрямую, без microtask на каждый
-        // фрейм (100/сек). isStale проверяется только до — после нет await.
         const vad = rnnoise.processFrame(frame);
         w.port.postMessage({ type: 'processed', frame }, [frame.buffer]);
         state.onVad?.(vad);
@@ -198,27 +241,20 @@ async function applyMode(mode: Mode): Promise<void> {
     const w = new AudioWorkletNode(state.context, 'forwarder-processor', {
       processorOptions: { frameSize: loaded.frameSize },
     });
-    // DFN-3 в streaming-mode возвращает Float32Array переменной длины:
-    // 0 семплов (буфер ещё не накопился) или N×frameSize. Накапливаем
-    // выход в pendingOut, отдаём worklet'у строго по frameSize.
     let pendingOut = new Float32Array(0);
     let isStale = false;
-    (w as any).__markStale = () => {
-      isStale = true;
-    };
+    (w as any).__markStale = () => { isStale = true; };
     w.port.onmessage = (e) => {
       if (isStale) return;
       if (e.data?.type === 'frame') {
         const frame = e.data.frame as Float32Array;
         const out = dfn3.processFrame(frame);
-        // Append out to pendingOut.
         if (out.length > 0) {
           const merged = new Float32Array(pendingOut.length + out.length);
           merged.set(pendingOut, 0);
           merged.set(out, pendingOut.length);
           pendingOut = merged;
         }
-        // Отдаём frameSize-блоками; если не накопилось — silence (frame in-place очистим).
         if (pendingOut.length >= loaded.frameSize) {
           frame.set(pendingOut.subarray(0, loaded.frameSize));
           pendingOut = pendingOut.slice(loaded.frameSize);
@@ -226,7 +262,7 @@ async function applyMode(mode: Mode): Promise<void> {
           frame.fill(0);
         }
         w.port.postMessage({ type: 'processed', frame }, [frame.buffer]);
-        state.onVad?.(NaN); // у DFN-3 VAD отдельным API не выставляется
+        state.onVad?.(NaN);
       } else if (e.data?.type === 'rms') {
         state.onRms?.(e.data.dbfs);
       }
@@ -236,7 +272,10 @@ async function applyMode(mode: Mode): Promise<void> {
     newNode = new AudioWorkletNode(state.context, 'passthrough-processor');
   }
 
-  // 3. Подключаем новую цепочку.
-  state.source.connect(newNode).connect(state.context.destination);
+  // Source → node → destination, плюс параллельные ветки analyser + recorderDest.
+  state.source.connect(newNode);
+  newNode.connect(state.context.destination);
+  newNode.connect(state.analyser);
+  newNode.connect(state.recorderDest);
   state.node = newNode;
 }

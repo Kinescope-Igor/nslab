@@ -30,14 +30,50 @@
         </div>
       </md-elevated-card>
 
+      <md-outlined-card class="source-card">
+        <h3 class="title-medium">Источник</h3>
+        <div class="source-row">
+          <md-outlined-select id="source-select">
+            <md-select-option value="mic" selected>
+              <div slot="headline">Микрофон</div>
+            </md-select-option>
+            <md-select-option value="/clips/clean-only.wav">
+              <div slot="headline">Clean speech (без шума)</div>
+            </md-select-option>
+            <md-select-option value="/clips/cafe-babble.wav">
+              <div slot="headline">Speech + кафе (0 dB SNR)</div>
+            </md-select-option>
+            <md-select-option value="/clips/office-keyboard.wav">
+              <div slot="headline">Speech + клавиатура (0 dB SNR)</div>
+            </md-select-option>
+            <md-select-option value="/clips/ac-fan.wav">
+              <div slot="headline">Speech + кондиционер (0 dB SNR)</div>
+            </md-select-option>
+            <md-select-option value="/clips/vacuum.wav">
+              <div slot="headline">Speech + пылесос (0 dB SNR)</div>
+            </md-select-option>
+            <md-select-option value="/clips/neighbor.wav">
+              <div slot="headline">Speech + соседи (0 dB SNR)</div>
+            </md-select-option>
+          </md-outlined-select>
+        </div>
+        <p class="body-small on-surface-variant src-hint">
+          Готовые семплы — clean speech (MS-SNSD) смешан с реальным шумом на 0 dB SNR. Loop.
+        </p>
+      </md-outlined-card>
+
       <section class="controls">
         <md-filled-button id="btn-start">
-          <span class="material-symbols-outlined" slot="icon">mic</span>
-          Включить микрофон
+          <span class="material-symbols-outlined" slot="icon">play_arrow</span>
+          Старт
         </md-filled-button>
         <md-outlined-button id="btn-stop" disabled>
           <span class="material-symbols-outlined" slot="icon">stop</span>
           Стоп
+        </md-outlined-button>
+        <md-outlined-button id="btn-record" disabled>
+          <span class="material-symbols-outlined" slot="icon">fiber_manual_record</span>
+          <span id="btn-record-label">Записать 10 сек</span>
         </md-outlined-button>
       </section>
 
@@ -81,6 +117,14 @@
             </div>
           </div>
         </label>
+      </md-outlined-card>
+
+      <md-outlined-card class="metrics-card">
+        <h3 class="title-medium">Спектрограмма</h3>
+        <canvas id="spectrogram" width="640" height="160" class="spectrogram"></canvas>
+        <p class="body-small on-surface-variant spec-hint">
+          Низкие частоты сверху, высокие снизу. Сдвиг слева → старее.
+        </p>
       </md-outlined-card>
 
       <md-outlined-card class="metrics-card">
