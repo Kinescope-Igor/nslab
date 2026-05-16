@@ -6,7 +6,7 @@ set -euo pipefail
 cd "$(dirname "$0")"
 mkdir -p mixed
 
-CLEAN=( clean/mssnsd_clnsp0.wav clean/mssnsd_clnsp1.wav clean/mssnsd_clnsp2.wav )
+CLEAN=( clean/mssnsd_clnsp0.wav clean/mssnsd_clnsp1.wav clean/mssnsd_clnsp2.wav clean/lad_ru_female.wav )
 NOISE=( noise/ac-fan.wav noise/cafe-babble.wav noise/office-keyboard.wav noise/neighbor.wav noise/vacuum.wav noise/munching.wav )
 SNR=( 5 0 -5 )
 
@@ -35,7 +35,7 @@ mix_one() {
 }
 
 for c in "${CLEAN[@]}"; do
-    cname=$(basename "$c" .wav | sed 's/mssnsd_//')
+    cname=$(basename "$c" .wav | sed 's/mssnsd_//;s/lad_//')
     for n in "${NOISE[@]}"; do
         nname=$(basename "$n" .wav)
         for snr in "${SNR[@]}"; do

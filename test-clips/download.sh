@@ -32,7 +32,28 @@ for pair in "${NOISE[@]}"; do
     fi
 done
 
-echo "=== 3. DeepFilterNet (Rikorose) — reference assets ==="
+echo "=== 3. Living Audio Dataset (Idlak) — русский clean speech ==="
+# Apache 2.0 / public domain audio (LibriVox). Один спикер ABR (female, 48 kHz mono).
+# Качаем tar.gz (~142 MB) с archive.org, склеиваем 4 коротких фрагмента в 10-sec clip.
+if [ ! -f "_raw/lad-ru.tar.gz" ]; then
+    mkdir -p _raw
+    curl -sL -o _raw/lad-ru.tar.gz \
+        "https://archive.org/download/ru.ru.abr.48000.tar/ru.ru.abr.48000.tar.gz"
+fi
+mkdir -p _raw/lad-ru-extract
+tar xzf _raw/lad-ru.tar.gz -C _raw/lad-ru-extract --skip-old-files 2>/dev/null || true
+LAD_DIR="_raw/lad-ru-extract/48000_orig"
+cat > _raw/lad-concat.txt <<EOF
+file '../$LAD_DIR/abr_z0001_003.wav'
+file '../$LAD_DIR/abr_z0001_006.wav'
+file '../$LAD_DIR/abr_z0001_010.wav'
+file '../$LAD_DIR/abr_z0001_014.wav'
+EOF
+ffmpeg -y -hide_banner -loglevel error -f concat -safe 0 -i _raw/lad-concat.txt \
+    -ar 16000 -ac 1 -t 10 -c:a pcm_s16le clean/lad_ru_female.wav
+echo "  clean/lad_ru_female.wav (10 sec, 16 kHz mono, женский голос)"
+
+echo "=== 4. DeepFilterNet (Rikorose) — reference assets ==="
 DFN_RAW="https://raw.githubusercontent.com/Rikorose/DeepFilterNet/main/assets"
 curl -sL "$DFN_RAW/clean_freesound_33711.wav" -o "reference/dfn_clean.wav"
 curl -sL "$DFN_RAW/noise_freesound_2530.wav" -o "reference/dfn_noise_a.wav"
@@ -40,7 +61,7 @@ curl -sL "$DFN_RAW/noise_freesound_573577.wav" -o "reference/dfn_noise_b.wav"
 curl -sL "$DFN_RAW/noisy_snr0.wav" -o "reference/dfn_noisy_snr0.wav"
 echo "  reference/dfn_*.wav (4 файла)"
 
-echo "=== 4. DTLN-rs (Datadog) — pre-noisy demo clips ==="
+echo "=== 5. DTLN-rs (Datadog) — pre-noisy demo clips ==="
 DTLN_RAW="https://raw.githubusercontent.com/DataDog/dtln-rs/main/clips"
 curl -sL "$DTLN_RAW/airconditioning.wav"      -o "reference/dtln_ac.wav"
 curl -sL "$DTLN_RAW/dog_barking_noisy.wav"    -o "reference/dtln_dog.wav"

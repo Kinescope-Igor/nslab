@@ -41,8 +41,9 @@ Mixed-клипы генерирует `make-mixed.sh` через ffmpeg (ске�
 | `mssnsd_clnsp0.wav` | MS-SNSD `clean_test/clnsp0.wav` | **MIT** | Английская речь, ~10 сек |
 | `mssnsd_clnsp1.wav` | MS-SNSD `clean_test/clnsp1.wav` | **MIT** | Английская речь, ~10 сек |
 | `mssnsd_clnsp2.wav` | MS-SNSD `clean_test/clnsp2.wav` | **MIT** | Английская речь, ~10 сек |
+| `lad_ru_female.wav` | Living Audio Dataset `ru/abr` (склейка фрагментов 003+006+010+014, обрезан до 10 сек) | **Apache 2.0** (LibriVox audio — public domain) | Русская речь, женский голос, 10 сек, 16 kHz mono |
 
-> **Примечание:** русская речь (Common Voice ru) пока не подключена — там нужен dump через API (требует ключа). Если для Speak важно проверить именно на русских голосах — добавим отдельным шагом, попросим коллег записать 3 коротких клипа сами либо вытянем из открытых русских корпусов (OpenSTT).
+> Living Audio Dataset (Idlak): https://github.com/Idlak/Living-Audio-Dataset — единственный пока русский спикер (ABR, female). Скачивается через pointer-файл `ru/ru/abr/audiourl` → `https://archive.org/download/ru.ru.abr.48000.tar/ru.ru.abr.48000.tar.gz` (~142 MB), 48 kHz mono, 653 фрагмента по 2-5 сек.
 
 ### Шумы (noise/)
 
