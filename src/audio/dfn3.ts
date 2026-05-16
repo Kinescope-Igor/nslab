@@ -1,49 +1,92 @@
 /**
- * DeepFilterNet 3 wrapper через `deepfilter-standalone` (MIT, WASM-runtime).
+ * DeepFilterNet 3 wrapper над **самостоятельно собранным WASM** из
+ * Rikorose/DeepFilterNet (commit main, май 2026, см. dfn3_build_report.md).
  *
- * Особенности DFN-3:
- *  - sample rate 48 kHz моно (тот же, что у RNNoise → переиспользуем forwarder)
- *  - frame size берём из getFrameLength() — обычно 480 samples (10 ms)
- *  - WASM и модель грузятся из CDN при первом initialize() (~3 MB)
+ * Раньше использовали npm-пакет `deepfilter-standalone`, но его JS-glue и
+ * WASM на стороннем CDN были разных версий → df_create() бросал
+ * RuntimeError: unreachable. Сборка из сорсов гарантирует точное
+ * соответствие.
  *
- * Streaming mode: модель сохраняет внутреннее состояние между вызовами
- * processStreaming() — критично для real-time-monitor, чтобы не было
- * щелчков на границах фреймов.
+ * Ассеты в public/dfn3-self/:
+ *  - df.js          — wasm-bindgen JS-glue (no-modules target → IIFE)
+ *  - df_bg.wasm     — наша сборка через `wasm-pack build libDF --target no-modules --features wasm`
+ *  - DeepFilterNet3_onnx.tar.gz — pretrained веса (из models/ репо автора)
+ *
+ * API (из df.d.ts):
+ *  - wasm_bindgen(wasmUrl)                                    — init
+ *  - wasm_bindgen.df_create(modelBytes: Uint8Array, atten_lim: number): number   — handle
+ *  - wasm_bindgen.df_get_frame_length(handle): number         — обычно 480
+ *  - wasm_bindgen.df_set_post_filter_beta(handle, beta): void
+ *  - wasm_bindgen.df_process_frame(handle, frame: Float32Array): Float32Array
+ *
+ * Параметры аудио: 48 kHz моно, frame = hop = 480 samples (10 ms).
  */
+
+const DF_JS_URL = '/dfn3-self/df.js';
+const DF_WASM_URL = '/dfn3-self/df_bg.wasm';
+const DF_MODEL_URL = '/dfn3-self/DeepFilterNet3_onnx.tar.gz';
+
+interface DfBindings {
+  (wasmUrl: string): Promise<unknown>;
+  df_create: (modelBytes: Uint8Array, attenLim: number) => number;
+  df_get_frame_length: (handle: number) => number;
+  df_set_post_filter_beta: (handle: number, beta: number) => void;
+  df_set_atten_lim: (handle: number, lim: number) => void;
+  df_process_frame: (handle: number, frame: Float32Array) => Float32Array;
+}
 
 interface Loaded {
   frameSize: number;
-  /** in-place denoise: возвращает Float32Array той же длины (обычно). */
   processFrame: (frame: Float32Array) => Float32Array;
   destroy: () => void;
 }
 
+let bindings: DfBindings | null = null;
 let loadedPromise: Promise<Loaded> | null = null;
 let loadedSync: Loaded | null = null;
+
+async function loadDfJs(): Promise<DfBindings> {
+  if (bindings) return bindings;
+  await new Promise<void>((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${DF_JS_URL}"]`);
+    if (existing) {
+      // df.js уже вставлен (повторный init после destroy) — global wasm_bindgen жив.
+      resolve();
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = DF_JS_URL;
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`failed to load ${DF_JS_URL}`));
+    document.head.appendChild(s);
+  });
+  const wb = (globalThis as { wasm_bindgen?: DfBindings }).wasm_bindgen;
+  if (!wb) throw new Error('wasm_bindgen global not exported by df.js');
+  bindings = wb;
+  return wb;
+}
 
 export async function init(): Promise<Loaded> {
   if (!loadedPromise) {
     loadedPromise = (async () => {
-      const { StandaloneDeepFilter } = await import('deepfilter-standalone');
-      const denoiser = new StandaloneDeepFilter({
-        // Self-host: default CDN библиотеки не отдаёт CORS-заголовки →
-        // ассеты скачаны постинстолом в public/dfn3/, отдаём с того же origin.
-        cdnUrl: '/dfn3',
-        attenuationLimit: 50, // default; 100 вызывает RuntimeError: unreachable в WASM
-        postFilterBeta: 0.02,
-      });
-      await denoiser.initialize();
-      denoiser.startStreaming();
+      const wb = await loadDfJs();
+      await wb(DF_WASM_URL);
+
+      const modelBytes = new Uint8Array(await (await fetch(DF_MODEL_URL)).arrayBuffer());
+      // attenuation_limit в dB: 100 = максимальное подавление (default по df-CLI).
+      // С нашим WASM это безопасно (в отличие от чужого CDN, где падало).
+      const handle = wb.df_create(modelBytes, 100);
+      if (!handle) throw new Error('df_create returned null');
+      wb.df_set_post_filter_beta(handle, 0.02);
+
+      const frameSize = wb.df_get_frame_length(handle);
 
       const loaded: Loaded = {
-        frameSize: denoiser.getFrameLength(),
-        processFrame: (frame: Float32Array) => denoiser.processStreaming(frame),
+        frameSize,
+        processFrame: (frame) => wb.df_process_frame(handle, frame),
         destroy: () => {
-          try {
-            denoiser.stopStreaming();
-          } finally {
-            denoiser.destroy();
-          }
+          // В нашем API нет df_destroy; handle живёт до perdoy унифицирующего unload.
+          // Для бенчмарка ОК — memory освободится при reload страницы.
         },
       };
       loadedSync = loaded;
@@ -56,10 +99,7 @@ export async function init(): Promise<Loaded> {
   return loadedPromise;
 }
 
-/**
- * Sync hot-path. Возвращает Float32Array — может быть короче или длиннее
- * входного фрейма (streaming mode копит буфер). Вызывающий должен буферизовать.
- */
+/** Sync hot-path после init: in-place denoise одного фрейма. */
 export function processFrame(frame: Float32Array): Float32Array {
   if (!loadedSync) throw new Error('dfn3 not initialised — await init() first');
   return loadedSync.processFrame(frame);

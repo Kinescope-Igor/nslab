@@ -7,11 +7,13 @@ dist/
 # DTLN runtime files copied via postinstall (scripts/copy-dtln-assets.mjs)
 public/dtln-web/
 
-# DFN-3 assets downloaded via postinstall (scripts/download-dfn3-assets.mjs)
-public/dfn3/
-
 # DNSMOS model downloaded via postinstall (scripts/download-dnsmos-assets.mjs)
 public/dnsmos/
+
+# DFN-3 self-built WASM artefacts (public/dfn3-self/) — закоммичены в репо.
+# Собраны через `wasm-pack build libDF --target no-modules --features wasm`
+# из Rikorose/DeepFilterNet (см. dfn3_build_report.md). Размер ~16 MB —
+# приемлемо ради простоты деплоя без Rust toolchain.
 
 # Test clips — скачиваются по требованию через test-clips/download.sh, в репо не лежат.
 test-clips/clean/

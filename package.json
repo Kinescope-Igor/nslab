@@ -8,7 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "postinstall": "node scripts/copy-dtln-assets.mjs && node scripts/download-dfn3-assets.mjs && node scripts/download-dnsmos-assets.mjs"
+    "postinstall": "node scripts/copy-dtln-assets.mjs && node scripts/download-dnsmos-assets.mjs"
   },
   "devDependencies": {
     "typescript": "~5.6.3",
@@ -18,7 +18,6 @@
     "@material/web": "2.4.1",
     "@sapphi-red/dtln-web": "0.1.4",
     "@shiguredo/rnnoise-wasm": "2025.1.5",
-    "deepfilter-standalone": "1.0.2",
     "onnxruntime-web": "1.26.0"
   }
 }

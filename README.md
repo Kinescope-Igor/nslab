@@ -43,17 +43,13 @@ bash make-mixed.sh  # 54 mixed-клипа на трёх SNR через ffmpeg, ~
 - [x] Скелет: Vite + TS + AudioWorklet, passthrough работает.
 - [x] RNNoise через `@shiguredo/rnnoise-wasm` (main thread + forwarder worklet).
 - [x] DTLN через `@sapphi-red/dtln-web` (TFLite, 16 kHz, ScriptProcessorNode).
-- [ ] **DeepFilterNet 3 — отключён.** `deepfilter-standalone` бросает
-   `RuntimeError: unreachable` в `df_create()` независимо от наличия SAB и
-   значения `attenuationLimit`. Альтернативный wrapper
-   (`livekit-deepfilternet3-noise-filter` от phuvinh010701) поставляется
-   с GitHub без pre-built dist. Чтобы починить: либо собрать DFN-3 WASM
-   из Rust сорсов через wasm-pack, либо реализовать DFN-3 pipeline на
-   onnxruntime-web + sub-models из tar.gz напрямую. Заготовка кода
-   осталась в `src/audio/dfn3.ts` + `pipeline.ts` (case `dfn3`).
-- [ ] DNSMOS P.835 рядом с каждым плеером.
-- [ ] Spectrogram waterfall.
-- [ ] Запись 10s clip × 4 для blind A/B/C/D.
+- [x] DeepFilterNet 3 через **self-built WASM** из Rikorose/DeepFilterNet
+   (libDF + wasm-pack, target no-modules). Артефакты в `public/dfn3-self/`,
+   процесс сборки в [`/Users/igors/claudecode/dfn3_build_report.md`](/Users/igors/claudecode/dfn3_build_report.md).
+- [x] Spectrogram waterfall (Canvas2D, log-spaced bins).
+- [x] DNSMOS P.835 в Web Worker (onnxruntime-web + sig_bak_ovr.onnx).
+- [x] Запись 10s clip → `clip-{mode}-{timestamp}.webm`.
+- [x] Sample clips — 6 mixed на 0 dB SNR в dropdown.
 - [ ] Деплой на `kn.pe/lab/noise-bench/` (HTTPS, MIME для .wasm).
 
 План: [`/Users/igors/claudecode/noise_bench_plan.md`](/Users/igors/claudecode/noise_bench_plan.md).
