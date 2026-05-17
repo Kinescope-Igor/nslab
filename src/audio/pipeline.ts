@@ -27,7 +27,7 @@ import * as rnnoise from './rnnoise';
 import * as dtln from './dtln';
 import * as dfn3 from './dfn3';
 
-export type Mode = 'raw' | 'rnnoise' | 'dtln' | 'dfn3';
+export type Mode = 'raw' | 'webrtc' | 'rnnoise' | 'dtln' | 'dfn3';
 
 export type SourceConfig =
   | { kind: 'mic' }
@@ -35,10 +35,23 @@ export type SourceConfig =
 
 const SAMPLE_RATE: Record<Mode, number> = {
   raw: 48000,
+  webrtc: 48000,
   rnnoise: 48000,
   dtln: 16000,
   dfn3: 48000,
 };
+
+// WebRTC NS активируется через getUserMedia constraints (браузерный APM).
+// Для готовых семплов недоступен — нет mic-pipeline, поэтому passthrough.
+function micConstraintsFor(mode: Mode): MediaTrackConstraints {
+  const isWebrtc = mode === 'webrtc';
+  return {
+    channelCount: 1,
+    echoCancellation: isWebrtc,
+    noiseSuppression: isWebrtc,
+    autoGainControl: isWebrtc,
+  };
+}
 
 export interface PipelineState {
   context: AudioContext | null;
@@ -91,14 +104,23 @@ export function stop(): Promise<void> {
 
 export function setMode(mode: Mode): Promise<void> {
   return enqueue(async () => {
+    const prevMode = state.mode;
     state.mode = mode;
     if (!state.context) return;
-    if (state.context.sampleRate === SAMPLE_RATE[mode]) {
-      await applyMode(mode);
-    } else {
+    if (state.context.sampleRate !== SAMPLE_RATE[mode]) {
       await teardown();
       await reinitContext(mode);
+      return;
     }
+    // WebRTC NS живёт в mic-constraints — пересоздаём stream при переключении
+    // в/из webrtc (если источник микрофон), иначе constraint не сменится.
+    if (
+      state.sourceConfig.kind === 'mic' &&
+      (prevMode === 'webrtc') !== (mode === 'webrtc')
+    ) {
+      await reinitSource();
+    }
+    await applyMode(mode);
   });
 }
 
@@ -179,12 +201,7 @@ async function reinitSource(): Promise<void> {
 
   if (state.sourceConfig.kind === 'mic') {
     state.stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        channelCount: 1,
-        echoCancellation: false,
-        noiseSuppression: false,
-        autoGainControl: false,
-      },
+      audio: micConstraintsFor(state.mode),
     });
     state.source = state.context.createMediaStreamSource(state.stream);
   } else {
@@ -220,7 +237,9 @@ async function applyMode(mode: Mode): Promise<void> {
 
   let newNode: AudioNode;
 
-  if (mode === 'raw') {
+  if (mode === 'raw' || mode === 'webrtc') {
+    // 'webrtc' = браузерный APM включён в mic-stream (см. micConstraintsFor),
+    // здесь просто пропускаем уже-обработанный звук дальше.
     const w = new AudioWorkletNode(state.context, 'passthrough-processor');
     w.port.onmessage = (e) => {
       if (e.data?.type === 'rms') state.onRms?.(e.data.dbfs);
