@@ -153,7 +153,15 @@ async function main() {
   const t0 = Date.now();
   const runs = [];
   for (const spec of filteredMatrix) {
-    const r = await runOne(spec);
+    let r;
+    try {
+      r = await runOne(spec);
+    } catch (err) {
+      // Build/connect failure (например device не каталогизирован на BS) —
+      // ловим здесь, чтобы один сбой не убивал прогон по остальным устройствам.
+      r = { spec, ok: false, error: err.message || String(err) };
+      console.error(`  ✗ ${spec.name} (build failed): ${r.error}`);
+    }
     runs.push(r);
     if (r.ok) console.log(`  ✓ ${spec.name}: ${r.results.length} строк`);
   }

@@ -221,7 +221,29 @@ export async function runAllBenchmarks(
   const signal48 = generateTestSignal(MIC_SR, DURATION_SEC);
 
   type Step = { name: string; run: () => Promise<BenchResult> };
+  // Порядок важен: GTCRN (ORT) ПЕРВЫМ, пока WASM heap свободен. На iOS Safari
+  // после загрузки DFN-3 (8.6 MB WASM + 7.6 MB модель) ORT падал с
+  // RangeError: Out of memory. RNNoise/DFN-3 свои runtime — не конфликтуют.
   const steps: Step[] = [
+    ...gtcrnBackends.map((backend): Step => ({
+      name: `GTCRN (${backend})`,
+      run: async () => {
+        const memBefore = snapMem();
+        const sess = await gtcrn.createSession(backend);
+        const memDelta = memBefore != null && snapMem() != null ? (snapMem()! - memBefore) : null;
+        try {
+          const r = await benchPerFrame({
+            mode: 'gtcrn', label: 'GTCRN', backend,
+            signal48, nativeSr: 16000, frameSize: sess.frameSize,
+            process: (f) => sess.processFrame(f),
+          });
+          r.memMb = memDelta != null ? +(memDelta / (1024 * 1024)).toFixed(1) : null;
+          return r;
+        } finally {
+          await sess.destroy();
+        }
+      },
+    })),
     {
       name: 'RNNoise (wasm)',
       run: async () => {
@@ -252,25 +274,6 @@ export async function runAllBenchmarks(
         return r;
       },
     },
-    ...gtcrnBackends.map((backend): Step => ({
-      name: `GTCRN (${backend})`,
-      run: async () => {
-        const memBefore = snapMem();
-        const sess = await gtcrn.createSession(backend);
-        const memDelta = memBefore != null && snapMem() != null ? (snapMem()! - memBefore) : null;
-        try {
-          const r = await benchPerFrame({
-            mode: 'gtcrn', label: 'GTCRN', backend,
-            signal48, nativeSr: 16000, frameSize: sess.frameSize,
-            process: (f) => sess.processFrame(f),
-          });
-          r.memMb = memDelta != null ? +(memDelta / (1024 * 1024)).toFixed(1) : null;
-          return r;
-        } finally {
-          await sess.destroy();
-        }
-      },
-    })),
     {
       name: 'DTLN (wasm xnnpack)',
       run: () => benchDtln(),

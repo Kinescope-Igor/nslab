@@ -23,7 +23,13 @@ let sessionPromise: Promise<ort.InferenceSession> | null = null;
 async function getSession(modelUrl: string): Promise<ort.InferenceSession> {
   if (!sessionPromise) {
     sessionPromise = (async () => {
-      ort.env.wasm.wasmPaths = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ort.env.versions.web}/dist/`;
+      // non-JSEP build (13 MB) вместо default JSEP (26 MB). iOS Safari ловит
+      // OOM при компиляции JSEP-варианта на iPhone. DNSMOS-у webgpu не нужен.
+      const base = `https://cdn.jsdelivr.net/npm/onnxruntime-web@${ort.env.versions.web}/dist/`;
+      ort.env.wasm.wasmPaths = {
+        'ort-wasm-simd-threaded.wasm': `${base}ort-wasm-simd-threaded.wasm`,
+        'ort-wasm-simd-threaded.mjs': `${base}ort-wasm-simd-threaded.mjs`,
+      };
       return ort.InferenceSession.create(modelUrl, {
         executionProviders: ['wasm'],
       });

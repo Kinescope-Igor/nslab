@@ -117,7 +117,19 @@ function freshState(session: ort.InferenceSession): State {
 }
 
 async function createSessionForBackend(backend: Backend): Promise<ort.InferenceSession> {
-  ort.env.wasm.wasmPaths = ORT_WASM_BASE;
+  // Для wasm-backend используем non-JSEP build (13 MB), без JSEP-варианта
+  // (26 MB, нужен только для WebGPU/WebNN). На iOS Safari JSEP-build даёт
+  // RangeError: Out of memory при компиляции. ORT 1.26 single-thread WASM
+  // убрал — оставшиеся варианты все *-threaded, но без SAB просто запускаются
+  // в single-thread mode (numThreads=1).
+  if (backend === 'wasm') {
+    ort.env.wasm.wasmPaths = {
+      'ort-wasm-simd-threaded.wasm': `${ORT_WASM_BASE}ort-wasm-simd-threaded.wasm`,
+      'ort-wasm-simd-threaded.mjs': `${ORT_WASM_BASE}ort-wasm-simd-threaded.mjs`,
+    };
+  } else {
+    ort.env.wasm.wasmPaths = ORT_WASM_BASE;
+  }
   ort.env.wasm.numThreads = 1;
   ort.env.wasm.simd = true;
   const buf = new Uint8Array(await (await fetch(MODEL_URL)).arrayBuffer());
