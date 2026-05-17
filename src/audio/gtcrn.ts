@@ -25,11 +25,13 @@ const N_FFT = 512;
 const HOP = 256;
 const N_FREQ = N_FFT / 2 + 1;
 
-// Hann^0.5 = sqrt(Hann), perfect-reconstruction при symm analysis+synthesis.
+// Hann^0.5 = sqrt(periodic Hann). Periodic (torch.hann_window default,
+// делитель N а не N-1) даёт точный COLA=1 при hop=N/2 и одинаковом
+// окне на analysis+synthesis. Автор: torch.stft(window=hann_window(N).pow(0.5)).
 const WINDOW = (() => {
   const w = new Float32Array(N_FFT);
   for (let n = 0; n < N_FFT; n++) {
-    const hann = 0.5 - 0.5 * Math.cos((2 * Math.PI * n) / (N_FFT - 1));
+    const hann = 0.5 - 0.5 * Math.cos((2 * Math.PI * n) / N_FFT);
     w[n] = Math.sqrt(hann);
   }
   return w;
