@@ -260,15 +260,30 @@ export async function runAllBenchmarks(
       },
     },
     {
-      name: 'DFN-3 (wasm libDF)',
+      name: 'DFN-3 base (wasm libDF)',
       run: async () => {
         const memBefore = snapMem();
-        const loaded = await dfn3.init();
+        const loaded = await dfn3.init('base');
         const memDelta = memBefore != null && snapMem() != null ? (snapMem()! - memBefore) : null;
         const r = await benchPerFrame({
           mode: 'dfn3', label: 'DeepFilterNet 3', backend: 'wasm (libDF)',
           signal48, nativeSr: 48000, frameSize: loaded.frameSize,
-          process: (f) => { dfn3.processFrame(f); },
+          process: (f) => { dfn3.processFrame(f, 'base'); },
+        });
+        r.memMb = memDelta != null ? +(memDelta / (1024 * 1024)).toFixed(1) : null;
+        return r;
+      },
+    },
+    {
+      name: 'DFN-3 LL (wasm libDF)',
+      run: async () => {
+        const memBefore = snapMem();
+        const loaded = await dfn3.init('ll');
+        const memDelta = memBefore != null && snapMem() != null ? (snapMem()! - memBefore) : null;
+        const r = await benchPerFrame({
+          mode: 'dfn3_ll', label: 'DeepFilterNet 3 LL', backend: 'wasm (libDF)',
+          signal48, nativeSr: 48000, frameSize: loaded.frameSize,
+          process: (f) => { dfn3.processFrame(f, 'll'); },
         });
         r.memMb = memDelta != null ? +(memDelta / (1024 * 1024)).toFixed(1) : null;
         return r;

@@ -28,7 +28,16 @@
 
 const DF_JS_URL = new URL('dfn3-self/df.js', document.baseURI).href;
 const DF_WASM_URL = new URL('dfn3-self/df_bg.wasm', document.baseURI).href;
-const DF_MODEL_URL = new URL('dfn3-self/DeepFilterNet3_onnx.bin', document.baseURI).href;
+
+// Две модели от Rikorose/DeepFilterNet:
+//   base — 7.6 MB, 30 ms latency, 2-frame lookahead — лучшее качество
+//   ll   — 35 MB,  10 ms latency, 0-frame lookahead — true streaming, для live mic
+const MODEL_URLS: Record<Variant, string> = {
+  base: new URL('dfn3-self/DeepFilterNet3_onnx.bin', document.baseURI).href,
+  ll:   new URL('dfn3-self/DeepFilterNet3_ll.bin', document.baseURI).href,
+};
+
+export type Variant = 'base' | 'll';
 
 interface DfBindings {
   (wasmUrl: string): Promise<unknown>;
@@ -46,16 +55,21 @@ interface Loaded {
 }
 
 let bindings: DfBindings | null = null;
-let loadedPromise: Promise<Loaded> | null = null;
-let loadedSync: Loaded | null = null;
 
 // Default attenuation_limit в dB — 30 близко к production-настройкам
 // типа Krisp. df-CLI default = 100 (max) даёт «вырезы» речи на границах VAD.
 export const DEFAULT_ATTEN_LIM_DB = 30;
 
-// Cached refs для setAttenLim/setPostFilterBeta без re-init.
-let bindingsRef: DfBindings | null = null;
-let handleRef: number | null = null;
+// Per-variant state: каждая модель имеет свой handle + bindings ref.
+interface VariantState {
+  loadedPromise: Promise<Loaded> | null;
+  loadedSync: Loaded | null;
+  handleRef: number | null;
+}
+const states: Record<Variant, VariantState> = {
+  base: { loadedPromise: null, loadedSync: null, handleRef: null },
+  ll:   { loadedPromise: null, loadedSync: null, handleRef: null },
+};
 
 async function loadDfJs(): Promise<DfBindings> {
   if (bindings) return bindings;
@@ -78,70 +92,66 @@ async function loadDfJs(): Promise<DfBindings> {
   return wb;
 }
 
-export async function init(): Promise<Loaded> {
-  if (!loadedPromise) {
-    loadedPromise = (async () => {
+export async function init(variant: Variant = 'base'): Promise<Loaded> {
+  const st = states[variant];
+  if (!st.loadedPromise) {
+    st.loadedPromise = (async () => {
       const wb = await loadDfJs();
       await wb(DF_WASM_URL);
 
-      const modelBytes = new Uint8Array(await (await fetch(DF_MODEL_URL)).arrayBuffer());
-      // attenuation_limit в dB: max сколько модель имеет права срезать.
-      // df-CLI default = 100 dB ≈ почти полное замолкание не-речи, но при
-      // этом могут вырезаться сегменты речи на границах VAD → «прерывания».
-      // 30 dB — типичный production-default (как Krisp/Discord) — звучит
-      // естественно, сохраняет «дыхание» между фразами.
+      const modelBytes = new Uint8Array(await (await fetch(MODEL_URLS[variant])).arrayBuffer());
       const handle = wb.df_create(modelBytes, DEFAULT_ATTEN_LIM_DB);
-      if (!handle) throw new Error('df_create returned null');
-      // post-filter beta = 0 выключает доп. подавление; 0.02-0.05 — мягко.
-      // Для DFN-3 с atten_lim=30 пока оставляем выключенным.
+      if (!handle) throw new Error(`df_create returned null (variant=${variant})`);
       wb.df_set_post_filter_beta(handle, 0);
 
-      handleRef = handle;
-      bindingsRef = wb;
+      st.handleRef = handle;
 
       const frameSize = wb.df_get_frame_length(handle);
-
       const loaded: Loaded = {
         frameSize,
         processFrame: (frame) => wb.df_process_frame(handle, frame),
         destroy: () => {
-          // В нашем API нет df_destroy; handle живёт до perdoy унифицирующего unload.
-          // Для бенчмарка ОК — memory освободится при reload страницы.
+          // Нет df_destroy в нашем API; handle живёт до reload страницы.
         },
       };
-      loadedSync = loaded;
+      st.loadedSync = loaded;
       return loaded;
     })().catch((err) => {
-      loadedPromise = null;
+      st.loadedPromise = null;
       throw err;
     });
   }
-  return loadedPromise;
+  return st.loadedPromise;
 }
 
-/** Поменять attenuation_limit (dB) без re-init. 30 — типичное, 100 — max. */
-export function setAttenLim(db: number): void {
-  if (bindingsRef && handleRef != null) bindingsRef.df_set_atten_lim(handleRef, db);
+/** Поменять attenuation_limit (dB) без re-init. Применяется к указанному variant. */
+export function setAttenLim(db: number, variant: Variant = 'base'): void {
+  const st = states[variant];
+  if (bindings && st.handleRef != null) bindings.df_set_atten_lim(st.handleRef, db);
 }
 
 /** Post-filter beta. 0 = выкл, 0.02-0.05 = мягко, 0.1+ = агрессивно. */
-export function setPostFilterBeta(beta: number): void {
-  if (bindingsRef && handleRef != null) bindingsRef.df_set_post_filter_beta(handleRef, beta);
+export function setPostFilterBeta(beta: number, variant: Variant = 'base'): void {
+  const st = states[variant];
+  if (bindings && st.handleRef != null) bindings.df_set_post_filter_beta(st.handleRef, beta);
 }
 
 /** Sync hot-path после init: in-place denoise одного фрейма. */
-export function processFrame(frame: Float32Array): Float32Array {
-  if (!loadedSync) throw new Error('dfn3 not initialised — await init() first');
-  return loadedSync.processFrame(frame);
+export function processFrame(frame: Float32Array, variant: Variant = 'base'): Float32Array {
+  const st = states[variant];
+  if (!st.loadedSync) throw new Error(`dfn3 (${variant}) not initialised — await init() first`);
+  return st.loadedSync.processFrame(frame);
 }
 
 export async function destroy(): Promise<void> {
-  if (loadedPromise) {
-    const loaded = await loadedPromise.catch(() => null);
-    loaded?.destroy();
-    loadedPromise = null;
-    loadedSync = null;
-    bindingsRef = null;
-    handleRef = null;
+  for (const variant of ['base', 'll'] as Variant[]) {
+    const st = states[variant];
+    if (st.loadedPromise) {
+      const loaded = await st.loadedPromise.catch(() => null);
+      loaded?.destroy();
+      st.loadedPromise = null;
+      st.loadedSync = null;
+      st.handleRef = null;
+    }
   }
 }

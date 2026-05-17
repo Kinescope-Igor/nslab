@@ -148,7 +148,9 @@ dfn3AttenSlider.addEventListener('input', () => {
   const v = Number(dfn3AttenSlider.value);
   if (!Number.isFinite(v)) return;
   dfn3AttenLabel.textContent = `${v.toFixed(0)} dB`;
-  dfn3.setAttenLim(v);  // no-op если сессия ещё не инициализирована
+  // Применяем к обоим вариантам (base и ll) — кто инициализирован.
+  dfn3.setAttenLim(v, 'base');
+  dfn3.setAttenLim(v, 'll');
 });
 
 function attachSpectrogram() {

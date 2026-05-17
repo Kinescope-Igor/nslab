@@ -28,7 +28,7 @@ import * as dtln from './dtln';
 import * as dfn3 from './dfn3';
 import * as gtcrn from './gtcrn';
 
-export type Mode = 'raw' | 'webrtc' | 'rnnoise' | 'dtln' | 'dfn3' | 'gtcrn';
+export type Mode = 'raw' | 'webrtc' | 'rnnoise' | 'dtln' | 'dfn3' | 'dfn3_ll' | 'gtcrn';
 
 export type SourceConfig =
   | { kind: 'mic' }
@@ -40,6 +40,7 @@ const SAMPLE_RATE: Record<Mode, number> = {
   rnnoise: 48000,
   dtln: 16000,
   dfn3: 48000,
+  dfn3_ll: 48000,
   gtcrn: 16000,
 };
 
@@ -282,8 +283,9 @@ async function applyMode(mode: Mode): Promise<void> {
     const api = await dtln.init();
     newNode = api.createNode(state.context);
     state.onVad?.(NaN);
-  } else if (mode === 'dfn3') {
-    const loaded = await dfn3.init();
+  } else if (mode === 'dfn3' || mode === 'dfn3_ll') {
+    const variant = mode === 'dfn3_ll' ? 'll' : 'base';
+    const loaded = await dfn3.init(variant);
     const w = new AudioWorkletNode(state.context, 'forwarder-processor', {
       processorOptions: { frameSize: loaded.frameSize },
     });
@@ -294,7 +296,7 @@ async function applyMode(mode: Mode): Promise<void> {
       if (isStale) return;
       if (e.data?.type === 'frame') {
         const frame = e.data.frame as Float32Array;
-        const out = dfn3.processFrame(frame);
+        const out = dfn3.processFrame(frame, variant);
         if (out.length > 0) {
           const merged = new Float32Array(pendingOut.length + out.length);
           merged.set(pendingOut, 0);
