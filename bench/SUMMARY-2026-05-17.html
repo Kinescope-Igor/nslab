@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NSLab — кросс-платформенный benchmark · 2026-05-17</title>
+  <style>
+    :root {
+      --bg: #f8f9fa;
+      --card: #ffffff;
+      --ink: #1a1a1a;
+      --muted: #6b7280;
+      --border: #e5e7eb;
+      --good: #16a34a;
+      --good-bg: #dcfce7;
+      --warn: #ea580c;
+      --warn-bg: #ffedd5;
+      --bad: #dc2626;
+      --bad-bg: #fee2e2;
+      --code: #f3f4f6;
+    }
+    * { box-sizing: border-box; }
+    body {
+      font: 15px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      color: var(--ink); background: var(--bg);
+      margin: 0; padding: 24px 16px;
+    }
+    .wrap { max-width: 1100px; margin: 0 auto; }
+    h1 { font-size: 28px; margin: 0 0 4px; }
+    h2 { font-size: 20px; margin: 32px 0 12px; padding-bottom: 8px; border-bottom: 1px solid var(--border); }
+    h3 { font-size: 16px; margin: 20px 0 8px; color: var(--muted); font-weight: 600; }
+    .meta { color: var(--muted); font-size: 13px; margin-bottom: 16px; }
+    .meta a { color: inherit; }
+    .topline {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 16px 20px; margin: 24px 0;
+    }
+    .topline strong { color: var(--good); }
+    table {
+      width: 100%; border-collapse: collapse; background: var(--card);
+      border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+      font-variant-numeric: tabular-nums;
+    }
+    th, td {
+      padding: 8px 10px; text-align: right; font-size: 14px;
+      border-bottom: 1px solid var(--border);
+    }
+    th:first-child, td:first-child { text-align: left; }
+    thead th { background: #f9fafb; font-weight: 600; color: var(--muted); }
+    tbody tr:last-child td { border-bottom: none; }
+    tbody tr:hover { background: #fafbfc; }
+    .badge {
+      display: inline-block; padding: 2px 8px; border-radius: 999px;
+      font-size: 12px; font-weight: 600; min-width: 52px;
+    }
+    .b-good { color: var(--good); background: var(--good-bg); }
+    .b-warn { color: var(--warn); background: var(--warn-bg); }
+    .b-bad  { color: var(--bad);  background: var(--bad-bg); }
+    .fail { color: var(--muted); font-style: italic; }
+    .scroll { overflow-x: auto; }
+    .findings { list-style: none; padding: 0; }
+    .findings li {
+      background: var(--card); border: 1px solid var(--border);
+      border-radius: 8px; padding: 14px 18px; margin: 10px 0;
+    }
+    .findings .key { color: var(--ink); font-weight: 600; }
+    code, kbd { font-family: ui-monospace, "SF Mono", Menlo, monospace; background: var(--code); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+    .legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 13px; margin: 12px 0 0; color: var(--muted); }
+    footer { margin-top: 40px; padding-top: 16px; border-top: 1px solid var(--border); color: var(--muted); font-size: 13px; }
+    footer a { color: inherit; }
+    @media (max-width: 600px) {
+      th, td { padding: 6px 6px; font-size: 12.5px; }
+      .badge { min-width: auto; padding: 1px 6px; font-size: 11px; }
+    }
+  </style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>NSLab — кросс-платформенный benchmark</h1>
+<div class="meta">
+  Тест-стенд: <a href="https://speak.kn.pe/lab/noise-bench/">speak.kn.pe/lab/noise-bench/</a>
+  · Прогон: 2026-05-17
+  · Сигнал: 10 sec pink noise + 1 kHz sine @ 48 kHz
+  · Для 16 kHz моделей resample 48→16 включён в per-frame latency.
+</div>
+
+<div class="topline">
+  <strong>DFN-3 работает в real-time на всех 14 успешных платформах</strong>
+  — от iPhone 13 и macOS Ventura до Win10/11 Chromium/Firefox.
+  RTF от 0.049 (Mac Chromium) до 0.193 (Chrome Win11) — везде минимум 5×-кратный запас.
+  Топ-1 кандидат для production Speak.
+</div>
+
+<div class="legend">
+  RTF =
+  <span class="badge b-good">&lt;0.3</span> большой запас
+  <span class="badge b-warn">&lt;1.0</span> real-time на грани
+  <span class="badge b-bad">≥1.0</span> не успевает
+</div>
+
+<h2>Desktop · 10/11 успешно</h2>
+<div class="scroll">
+<table>
+  <thead><tr>
+    <th>Платформа</th><th>RNNoise</th><th>DFN-3</th><th>GTCRN (wasm)</th><th>GTCRN (webgpu)</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>Edge · macOS Sequoia</td>      <td><span class="badge b-good">0.083</span></td><td><span class="badge b-good">0.050</span></td><td><span class="badge b-good">0.081</span></td><td><span class="badge b-bad">1.212</span></td></tr>
+    <tr><td>Chrome · macOS Sequoia</td>    <td><span class="badge b-good">0.082</span></td><td><span class="badge b-good">0.049</span></td><td><span class="badge b-good">0.074</span></td><td><span class="badge b-bad">1.217</span></td></tr>
+    <tr><td>Safari · macOS Sequoia</td>    <td><span class="badge b-good">0.062</span></td><td><span class="badge b-good">0.050</span></td><td><span class="badge b-good">0.093</span></td><td>—</td></tr>
+    <tr><td>Firefox · Windows 11</td>      <td><span class="badge b-good">0.105</span></td><td><span class="badge b-good">0.082</span></td><td><span class="badge b-good">0.128</span></td><td>—</td></tr>
+    <tr><td>Chrome · Windows 10</td>       <td><span class="badge b-good">0.101</span></td><td><span class="badge b-good">0.082</span></td><td><span class="badge b-good">0.122</span></td><td>—</td></tr>
+    <tr><td>Chrome · Windows 11</td>       <td><span class="badge b-good">0.103</span></td><td><span class="badge b-good">0.090</span></td><td><span class="badge b-good">0.126</span></td><td>—</td></tr>
+    <tr><td>Edge · Windows 11</td>         <td><span class="badge b-good">0.116</span></td><td><span class="badge b-good">0.092</span></td><td><span class="badge b-good">0.139</span></td><td>—</td></tr>
+    <tr><td>Edge · Windows 10</td>         <td><span class="badge b-good">0.104</span></td><td><span class="badge b-good">0.103</span></td><td><span class="badge b-good">0.127</span></td><td>—</td></tr>
+    <tr><td>Chrome · macOS Ventura</td>    <td><span class="badge b-good">0.116</span></td><td><span class="badge b-good">0.111</span></td><td><span class="badge b-good">0.205</span></td><td><span class="badge b-bad">3.266</span></td></tr>
+    <tr><td>Safari · macOS Ventura</td>    <td><span class="badge b-good">0.141</span></td><td><span class="badge b-good">0.142</span></td><td><span class="badge b-warn">0.469</span></td><td>—</td></tr>
+    <tr><td>Firefox · macOS Sequoia</td>   <td colspan="4" class="fail">timeout &gt; 360s — Firefox + macOS hang на BS</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Mobile · 4/5 успешно</h2>
+<div class="scroll">
+<table>
+  <thead><tr>
+    <th>Устройство</th><th>RNNoise</th><th>DFN-3</th><th>GTCRN (wasm)</th><th>GTCRN (webgpu)</th>
+  </tr></thead>
+  <tbody>
+    <tr><td>Samsung Galaxy S24 (SD8 Gen3)</td>  <td><span class="badge b-good">0.103</span></td><td><span class="badge b-good">0.073</span></td><td><span class="badge b-good">0.140</span></td><td>—</td></tr>
+    <tr><td>iPhone 15 Pro / Safari 17</td>      <td><span class="badge b-good">0.089</span></td><td><span class="badge b-good">0.095</span></td><td><span class="fail">OOM</span></td><td>—</td></tr>
+    <tr><td>iPhone 13 / Safari 15</td>          <td><span class="badge b-good">0.117</span></td><td><span class="badge b-good">0.140</span></td><td><span class="fail">OOM</span></td><td>—</td></tr>
+    <tr><td>Google Pixel 8 (Tensor G3)</td>     <td><span class="badge b-good">0.128</span></td><td><span class="badge b-good">0.094</span></td><td><span class="badge b-good">0.238</span></td><td><span class="badge b-bad">13.2</span></td></tr>
+    <tr><td>Samsung Galaxy A52</td>             <td colspan="4" class="fail">device + osVersion 11.0 не в BS-каталоге</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>Главные выводы</h2>
+<ol class="findings">
+  <li><span class="key">DFN-3 — real-time везде.</span> RTF &lt; 0.2 на всех 14 успешных платформах, включая iPhone 13 (2021 г.) и macOS Ventura. Cold-frame 4-24 ms — приемлемо. Топ-1 кандидат для production Speak.</li>
+  <li><span class="key">macOS Sequoia + Chromium/Safari = top-tier.</span> DFN-3 RTF 0.049-0.050 — в 20× запас. Все Win10/11 Chrome/Edge/Firefox: 0.082-0.103 (5-10× запас).</li>
+  <li><span class="key">macOS Ventura — деградация в 2-5×.</span> Safari Ventura GTCRN RTF 0.469 vs Sequoia 0.093. Chrome Ventura DFN-3 0.111 vs Sequoia 0.049. Старые версии WebKit/Safari ML-WASM JIT слабее. <strong>Рекомендация:</strong> минимум macOS Sequoia для Mac-юзеров Speak.</li>
+  <li><span class="key">WebGPU не имеет смысла для NSLab-моделей.</span> Pixel 8: RTF 13.2 vs WASM 0.238 (55× медленнее). Chrome macOS Sequoia: 1.217 vs 0.074 (16× медленнее). Chrome macOS Ventura: 3.266. Shader compile dominate — для tiny моделей это anti-optimization.</li>
+  <li><span class="key">iOS Safari + GTCRN OOM.</span> <code>onnxruntime-web</code> default тянет JSEP-build (26 MB), iOS Safari не выделяет столько contiguous WASM heap на iPhone. <code>wasmPaths</code>-override на non-JSEP build не помогает — нужен правильный entry-point import (отдельная задача).</li>
+  <li><span class="key">Firefox macOS hangs.</span> Таймаут &gt; 360s. На Win 11 Firefox работает (DFN-3 RTF 0.082). Похоже специфика BrowserStack Firefox+macOS+ORT/TFLite WASM JIT.</li>
+  <li><span class="key">Edge ≈ Chrome</span> на обеих OS (оба Chromium): идентичные RTF, идентичный webgpu anti-opt. Win10 ≈ Win11 для одного браузера (разница 5-10%).</li>
+</ol>
+
+<h2>Безопасный default для Speak команды</h2>
+<ul>
+  <li><strong>macOS Sequoia / любой современный браузер</strong> → DFN-3 (топ-качество, real-time).</li>
+  <li><strong>macOS Ventura и старее</strong> → DFN-3 (тоже real-time, но GTCRN заметно деград'нет).</li>
+  <li><strong>Win 10/11 любой Chromium/Firefox</strong> → DFN-3.</li>
+  <li><strong>iOS Safari</strong> → DFN-3 (GTCRN не загружается из-за ORT-bundle).</li>
+  <li><strong>Любая старая Android</strong> → RNNoise как fallback (минимальная нагрузка).</li>
+  <li><strong>WebRTC NS</strong> — нулевой overhead, всегда работает как baseline на всех платформах.</li>
+</ul>
+
+<footer>
+  Сырые данные:
+  <code>bench/out/results-2026-05-17T20-04-30.json</code> (extended desktop)
+  · <code>bench/out/results-2026-05-17T19-46-00.json</code> (initial full matrix)
+  · Markdown-версия отчёта:
+  <a href="https://github.com/Kinescope-Igor/nslab/blob/main/bench/SUMMARY-2026-05-17.md">SUMMARY-2026-05-17.md</a>
+  · Repo: <a href="https://github.com/Kinescope-Igor/nslab">github.com/Kinescope-Igor/nslab</a>
+</footer>
+
+</div>
+</body>
+</html>
