@@ -20,10 +20,11 @@ export async function init(): Promise<DtlnApi> {
   if (!apiPromise) {
     apiPromise = (async () => {
       const m = await import('@sapphi-red/dtln-web');
-      await m.setup('/dtln-web/');
+      const base = new URL('dtln-web/', document.baseURI).href;
+      await m.setup(base);
       // full-precision — DNSMOS теперь в Worker, главный thread свободен,
       // должен потянуть. Качество заметно выше quant_dynamic.
-      await m.loadModel({ path: '/dtln-web/' });
+      await m.loadModel({ path: base });
       return {
         sampleRate: m.sampleRate,
         createNode: (ctx: BaseAudioContext) =>

@@ -26,9 +26,9 @@
  * Параметры аудио: 48 kHz моно, frame = hop = 480 samples (10 ms).
  */
 
-const DF_JS_URL = '/dfn3-self/df.js';
-const DF_WASM_URL = '/dfn3-self/df_bg.wasm';
-const DF_MODEL_URL = '/dfn3-self/DeepFilterNet3_onnx.bin';
+const DF_JS_URL = new URL('dfn3-self/df.js', document.baseURI).href;
+const DF_WASM_URL = new URL('dfn3-self/df_bg.wasm', document.baseURI).href;
+const DF_MODEL_URL = new URL('dfn3-self/DeepFilterNet3_onnx.bin', document.baseURI).href;
 
 interface DfBindings {
   (wasmUrl: string): Promise<unknown>;

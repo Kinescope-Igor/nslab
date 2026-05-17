@@ -7,7 +7,11 @@
 import DnsmosWorker from '../workers/dnsmos-worker.ts?worker';
 
 export const TARGET_SR = 16000;
-const MODEL_URL = '/dnsmos/sig_bak_ovr.onnx';
+// Absolute URL от текущей страницы (под dev будет /dnsmos/...,
+// под /lab/noise-bench/ → /lab/noise-bench/dnsmos/...). Worker
+// получит готовый absolute, его fetch будет работать корректно
+// (без этого worker fetch'ил бы относительно /lab/noise-bench/assets/).
+const MODEL_URL = new URL('dnsmos/sig_bak_ovr.onnx', document.baseURI).href;
 
 export interface MosScore {
   sig: number;

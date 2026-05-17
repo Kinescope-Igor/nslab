@@ -12,7 +12,7 @@ A/B-сравнение шумодавов в браузере в реально�
 надеть наушники, переключить radio-кнопку «raw / RNNoise / DTLN / DFN-3» и
 услышать разницу в реальном времени на собственных аудио-кейсах.
 
-Хостинг: [`kn.pe/lab/noise-bench`](https://kn.pe/lab/noise-bench/) (планируется).
+Хостинг: [`speak.kn.pe/lab/noise-bench/`](https://speak.kn.pe/lab/noise-bench/).
 
 ## Локальный запуск
 
@@ -50,7 +50,20 @@ bash make-mixed.sh  # 54 mixed-клипа на трёх SNR через ffmpeg, ~
 - [x] DNSMOS P.835 в Web Worker (onnxruntime-web + sig_bak_ovr.onnx).
 - [x] Запись 10s clip → `clip-{mode}-{timestamp}.webm`.
 - [x] Sample clips — 6 mixed на 0 dB SNR в dropdown.
-- [ ] Деплой на `kn.pe/lab/noise-bench/` (HTTPS, MIME для .wasm).
+- [x] Деплой на `speak.kn.pe/lab/noise-bench/` (HTTPS, MIME для .wasm/.onnx).
+
+## Деплой
+
+Локально: `npm run build` → `dist/`. Затем:
+
+```bash
+rsync -az --delete --exclude='*.map' dist/ \
+  igor@89.23.107.2:/var/www/speak.kn.pe/lab/noise-bench/
+```
+
+nginx config: `/etc/nginx/sites-available/messenger` — `location ^~ /lab/`
+с alias + явные MIME для `.wasm/.onnx/.tflite/.bin`. Кэш immutable для
+hashed assets, 1-day must-revalidate для ML-моделей.
 
 План: [`/Users/igors/claudecode/noise_bench_plan.md`](/Users/igors/claudecode/noise_bench_plan.md).
 

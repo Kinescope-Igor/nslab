@@ -19,7 +19,7 @@
 import * as ort from 'onnxruntime-web';
 
 const ORT_WASM_BASE = 'https://cdn.jsdelivr.net/npm/onnxruntime-web@1.26.0/dist/';
-const MODEL_URL = '/gtcrn/gtcrn_simple.onnx';
+const MODEL_URL = new URL('gtcrn/gtcrn_simple.onnx', document.baseURI).href;
 
 const N_FFT = 512;
 const HOP = 256;
