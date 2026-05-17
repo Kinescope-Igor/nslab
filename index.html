@@ -179,6 +179,15 @@
             <div class="body-small on-surface-variant">
               Rikorose, 2023 · self-built WASM (libDF + wasm-pack)
             </div>
+            <div class="dfn3-params">
+              <label class="label-small on-surface-variant">
+                attenuation: <span id="dfn3-atten-label">30 dB</span>
+              </label>
+              <md-slider id="dfn3-atten-slider" min="6" max="100" step="1" value="30" labeled></md-slider>
+              <div class="label-small on-surface-variant" style="opacity:0.7">
+                30 dB ≈ Krisp-default (естественно); 100 dB = max (может «вырезать» речь)
+              </div>
+            </div>
           </div>
         </label>
 

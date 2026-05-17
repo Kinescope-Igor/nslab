@@ -257,3 +257,14 @@ footer a:hover {
 .bench-rtf-good { color: #2e7d32; font-weight: 500; }
 .bench-rtf-warn { color: #ef6c00; font-weight: 500; }
 .bench-rtf-bad  { color: #c62828; font-weight: 500; }
+
+.dfn3-params {
+  margin-top: 8px;
+  padding-left: 0;
+}
+.dfn3-params md-slider {
+  display: block;
+  --md-slider-handle-width: 14px;
+  --md-slider-handle-height: 14px;
+  max-width: 320px;
+}

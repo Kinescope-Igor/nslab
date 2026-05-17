@@ -2,6 +2,7 @@ import { start, stop, setMode, setSource, setGain, state, Mode, SourceConfig } f
 import { Spectrogram } from './audio/spectrogram';
 import { recordClip } from './audio/recorder';
 import * as dnsmos from './audio/dnsmos';
+import * as dfn3 from './audio/dfn3';
 import { runAllBenchmarks, BenchResult } from './audio/benchmark';
 
 // Material Web components — подгружаем только то, что используем.
@@ -32,6 +33,8 @@ const mVad = $('#m-vad') as HTMLSpanElement;
 const sourceSelect = $('#source-select') as HTMLElement & { value?: string; disabled?: boolean };
 const gainSlider = $('#gain-slider') as HTMLElement & { value?: number | string };
 const gainLabel = $('#gain-label') as HTMLSpanElement;
+const dfn3AttenSlider = $('#dfn3-atten-slider') as HTMLElement & { value?: number | string };
+const dfn3AttenLabel = $('#dfn3-atten-label') as HTMLSpanElement;
 const spectrogramCanvas = $('#spectrogram') as HTMLCanvasElement;
 const modesContainer = document.querySelector('.modes-card')!;
 
@@ -139,6 +142,13 @@ gainSlider.addEventListener('input', () => {
   if (!Number.isFinite(v)) return;
   setGain(v);
   updateGainLabel(v);
+});
+
+dfn3AttenSlider.addEventListener('input', () => {
+  const v = Number(dfn3AttenSlider.value);
+  if (!Number.isFinite(v)) return;
+  dfn3AttenLabel.textContent = `${v.toFixed(0)} dB`;
+  dfn3.setAttenLim(v);  // no-op если сессия ещё не инициализирована
 });
 
 function attachSpectrogram() {

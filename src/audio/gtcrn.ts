@@ -123,7 +123,7 @@ async function createSessionForBackend(backend: Backend): Promise<ort.InferenceS
   // убрал — оставшиеся варианты все *-threaded, но без SAB просто запускаются
   // в single-thread mode (numThreads=1).
   if (backend === 'wasm') {
-    ort.env.wasm.wasmPaths = {
+    (ort.env.wasm as unknown as { wasmPaths: Record<string, string> }).wasmPaths = {
       'ort-wasm-simd-threaded.wasm': `${ORT_WASM_BASE}ort-wasm-simd-threaded.wasm`,
       'ort-wasm-simd-threaded.mjs': `${ORT_WASM_BASE}ort-wasm-simd-threaded.mjs`,
     };

@@ -49,6 +49,14 @@ let bindings: DfBindings | null = null;
 let loadedPromise: Promise<Loaded> | null = null;
 let loadedSync: Loaded | null = null;
 
+// Default attenuation_limit в dB — 30 близко к production-настройкам
+// типа Krisp. df-CLI default = 100 (max) даёт «вырезы» речи на границах VAD.
+export const DEFAULT_ATTEN_LIM_DB = 30;
+
+// Cached refs для setAttenLim/setPostFilterBeta без re-init.
+let bindingsRef: DfBindings | null = null;
+let handleRef: number | null = null;
+
 async function loadDfJs(): Promise<DfBindings> {
   if (bindings) return bindings;
   await new Promise<void>((resolve, reject) => {
@@ -77,11 +85,19 @@ export async function init(): Promise<Loaded> {
       await wb(DF_WASM_URL);
 
       const modelBytes = new Uint8Array(await (await fetch(DF_MODEL_URL)).arrayBuffer());
-      // attenuation_limit в dB: 100 = максимальное подавление (default по df-CLI).
-      // С нашим WASM это безопасно (в отличие от чужого CDN, где падало).
-      const handle = wb.df_create(modelBytes, 100);
+      // attenuation_limit в dB: max сколько модель имеет права срезать.
+      // df-CLI default = 100 dB ≈ почти полное замолкание не-речи, но при
+      // этом могут вырезаться сегменты речи на границах VAD → «прерывания».
+      // 30 dB — типичный production-default (как Krisp/Discord) — звучит
+      // естественно, сохраняет «дыхание» между фразами.
+      const handle = wb.df_create(modelBytes, DEFAULT_ATTEN_LIM_DB);
       if (!handle) throw new Error('df_create returned null');
-      wb.df_set_post_filter_beta(handle, 0.02);
+      // post-filter beta = 0 выключает доп. подавление; 0.02-0.05 — мягко.
+      // Для DFN-3 с atten_lim=30 пока оставляем выключенным.
+      wb.df_set_post_filter_beta(handle, 0);
+
+      handleRef = handle;
+      bindingsRef = wb;
 
       const frameSize = wb.df_get_frame_length(handle);
 
@@ -103,6 +119,16 @@ export async function init(): Promise<Loaded> {
   return loadedPromise;
 }
 
+/** Поменять attenuation_limit (dB) без re-init. 30 — типичное, 100 — max. */
+export function setAttenLim(db: number): void {
+  if (bindingsRef && handleRef != null) bindingsRef.df_set_atten_lim(handleRef, db);
+}
+
+/** Post-filter beta. 0 = выкл, 0.02-0.05 = мягко, 0.1+ = агрессивно. */
+export function setPostFilterBeta(beta: number): void {
+  if (bindingsRef && handleRef != null) bindingsRef.df_set_post_filter_beta(handleRef, beta);
+}
+
 /** Sync hot-path после init: in-place denoise одного фрейма. */
 export function processFrame(frame: Float32Array): Float32Array {
   if (!loadedSync) throw new Error('dfn3 not initialised — await init() first');
@@ -115,5 +141,7 @@ export async function destroy(): Promise<void> {
     loaded?.destroy();
     loadedPromise = null;
     loadedSync = null;
+    bindingsRef = null;
+    handleRef = null;
   }
 }
