@@ -2,6 +2,7 @@ import { start, stop, setMode, setSource, setGain, state, Mode, SourceConfig } f
 import { Spectrogram } from './audio/spectrogram';
 import { recordClip } from './audio/recorder';
 import * as dnsmos from './audio/dnsmos';
+import { runAllBenchmarks, BenchResult } from './audio/benchmark';
 
 // Material Web components — подгружаем только то, что используем.
 import '@material/web/button/filled-button.js';
@@ -19,6 +20,11 @@ const btnStart = $('#btn-start') as HTMLButtonElement;
 const btnStop = $('#btn-stop') as HTMLButtonElement;
 const btnRecord = $('#btn-record') as HTMLButtonElement;
 const btnRecordLabel = $('#btn-record-label') as HTMLSpanElement;
+const btnBench = $('#btn-bench') as HTMLButtonElement;
+const btnBenchLabel = $('#btn-bench-label') as HTMLSpanElement;
+const benchCard = $('#bench-card') as HTMLElement;
+const benchStatus = $('#bench-status') as HTMLSpanElement;
+const benchRows = $('#bench-rows') as HTMLElement;
 const mState = $('#m-state') as HTMLSpanElement;
 const mRms = $('#m-rms') as HTMLSpanElement;
 const mSr = $('#m-sr') as HTMLSpanElement;
@@ -217,4 +223,50 @@ btnRecord.addEventListener('click', () => {
       btnRecordLabel.textContent = 'Записать 10 сек';
     },
   });
+});
+
+function rtfClass(rtf: number): string {
+  if (rtf < 0.3) return 'bench-rtf-good';
+  if (rtf < 1.0) return 'bench-rtf-warn';
+  return 'bench-rtf-bad';
+}
+
+function renderBench(results: BenchResult[]) {
+  benchRows.innerHTML = results
+    .map((r) => {
+      const cls = rtfClass(r.rtf);
+      const fmt = (n: number) => n.toFixed(n < 10 ? 2 : 1);
+      return `<tr>
+        <td>${r.label}${r.note ? ` <span title="${r.note}" style="cursor:help">ⓘ</span>` : ''}</td>
+        <td class="${cls}">${r.rtf.toFixed(3)}</td>
+        <td>${fmt(r.avgMs)}</td>
+        <td>${fmt(r.p50Ms)}</td>
+        <td>${fmt(r.p95Ms)}</td>
+        <td>${fmt(r.p99Ms)}</td>
+        <td>${(r.sampleRate / 1000).toFixed(0)}k</td>
+        <td>${r.note ? '—' : Math.round(r.audioMs / r.frames) + ' ms'}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+btnBench.addEventListener('click', async () => {
+  btnBench.disabled = true;
+  btnBenchLabel.textContent = 'Бенчмарк…';
+  benchCard.style.display = '';
+  benchRows.innerHTML = '';
+  benchStatus.textContent = 'инициализация…';
+  try {
+    const results = await runAllBenchmarks((current, done, total) => {
+      benchStatus.textContent = `${current} (${done}/${total})`;
+    });
+    renderBench(results);
+    benchStatus.textContent = `готово · ${results.length} модели`;
+  } catch (err) {
+    console.error(err);
+    benchStatus.textContent = `ошибка: ${(err as Error).message}`;
+  } finally {
+    btnBench.disabled = false;
+    btnBenchLabel.textContent = 'Бенчмарк';
+  }
 });

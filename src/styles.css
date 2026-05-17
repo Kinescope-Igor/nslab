@@ -231,3 +231,29 @@ footer a {
 footer a:hover {
   text-decoration: underline;
 }
+
+.bench-table-wrap {
+  overflow-x: auto;
+}
+.bench-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-family: 'Roboto Mono', monospace;
+  font-size: 13px;
+}
+.bench-table th,
+.bench-table td {
+  padding: 6px 8px;
+  text-align: right;
+  border-bottom: 1px solid var(--md-sys-color-outline-variant);
+}
+.bench-table th:first-child,
+.bench-table td:first-child {
+  text-align: left;
+}
+.bench-table tbody tr:hover {
+  background: var(--md-sys-color-surface-container-highest);
+}
+.bench-rtf-good { color: #2e7d32; font-weight: 500; }
+.bench-rtf-warn { color: #ef6c00; font-weight: 500; }
+.bench-rtf-bad  { color: #c62828; font-weight: 500; }
