@@ -1,1 +1,0 @@
-{"root":["./src/main.ts","./src/audio/dfn3.ts","./src/audio/dnsmos.ts","./src/audio/dtln.ts","./src/audio/gtcrn.ts","./src/audio/pipeline.ts","./src/audio/recorder.ts","./src/audio/rnnoise.ts","./src/audio/spectrogram.ts","./src/workers/dnsmos-worker.ts"],"version":"5.6.3"}
