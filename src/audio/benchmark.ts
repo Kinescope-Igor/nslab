@@ -282,7 +282,29 @@ export async function runAllBenchmarks(
     try {
       results.push(await steps[i].run());
     } catch (err) {
+      const msg = (err as Error).message ?? String(err);
       console.error('benchmark step failed', steps[i].name, err);
+      // Stub-результат: без RTF, но видно что упало и почему. Иначе строка
+      // молча исчезает из таблицы — отладка кошмарная.
+      results.push({
+        mode: 'failed',
+        label: steps[i].name,
+        backend: '—',
+        sampleRate: 0,
+        frameSize: 0,
+        audioMs: 0,
+        totalInferMs: 0,
+        rtf: NaN,
+        frames: 0,
+        coldMs: 0,
+        steadyAvgMs: 0,
+        p50Ms: 0,
+        p95Ms: 0,
+        p99Ms: 0,
+        maxMs: 0,
+        memMb: null,
+        note: `FAILED: ${msg.slice(0, 200)}`,
+      });
     }
   }
   onProgress?.('готово', steps.length, steps.length);

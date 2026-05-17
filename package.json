@@ -8,9 +8,13 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "postinstall": "node scripts/copy-dtln-assets.mjs && node scripts/download-dnsmos-assets.mjs"
+    "postinstall": "node scripts/copy-dtln-assets.mjs && node scripts/download-dnsmos-assets.mjs",
+    "bench:bs": "node bench/browserstack.mjs",
+    "bench:bs:smoke": "node bench/browserstack.mjs --only \"iphone 15\""
   },
   "devDependencies": {
+    "dotenv": "^17.4.2",
+    "selenium-webdriver": "^4.44.0",
     "typescript": "~5.6.3",
     "vite": "^6.0.7"
   },

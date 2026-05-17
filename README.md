@@ -65,6 +65,22 @@ nginx config: `/etc/nginx/sites-available/messenger` — `location ^~ /lab/`
 с alias + явные MIME для `.wasm/.onnx/.tflite/.bin`. Кэш immutable для
 hashed assets, 1-day must-revalidate для ML-моделей.
 
+## Бенчмарк через BrowserStack
+
+В UI стенда есть кнопка «Бенчмарк» — прогоняет 10-sec pink-noise через все
+шумодавы локально, показывает RTF / cold / p50 / p95 / mem. Чтобы собрать
+кросс-устройство картинку — скрипт `bench/browserstack.mjs`.
+
+```bash
+cp .env.local.example .env.local   # подставить BROWSERSTACK_USERNAME/ACCESS_KEY
+npm run bench:bs:smoke              # один iPhone 15 Pro для проверки flow
+npm run bench:bs                    # вся матрица (5 устройств, sequential ~10-15 мин)
+```
+
+Результаты в `bench/out/results-<timestamp>.{json,md}`. Скрипт читает
+`window.__nslabBench` (заполняется при клике на кнопку), pushes session-status
+в BrowserStack dashboard. План `Automate Mobile` обязателен.
+
 План: [`/Users/igors/claudecode/noise_bench_plan.md`](/Users/igors/claudecode/noise_bench_plan.md).
 
 ## Лицензия

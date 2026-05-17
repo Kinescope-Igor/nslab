@@ -3,6 +3,12 @@ dist/
 .DS_Store
 *.local
 .env
+.env.*
+# Но example-файлы пускаем — это шаблон с placeholder'ами без секретов.
+!.env*.example
+
+# BrowserStack benchmark outputs — JSON/MD per run, не нужны в репо.
+bench/out/
 
 # TypeScript build artifacts (vite сам бандлит, локальный tsc может налить лишнего)
 tsconfig.tsbuildinfo
