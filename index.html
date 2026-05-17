@@ -101,22 +101,25 @@
             <thead>
               <tr>
                 <th>Модель</th>
+                <th title="ORT execution provider или WASM-runtime пакета">Backend</th>
                 <th title="Real-Time Factor: inference / audio. &lt;1 = успевает за реальным временем">RTF</th>
-                <th title="Среднее время инференса на один фрейм">avg ms</th>
-                <th title="50-й перцентиль">p50</th>
+                <th title="Первый фрейм — включает JIT / WASM compile / model warm-up">cold ms</th>
+                <th title="50-й перцентиль на установившемся режиме (со 2-го фрейма)">p50</th>
                 <th title="95-й перцентиль (только 5% фреймов медленнее)">p95</th>
                 <th title="99-й перцентиль (худшие 1%)">p99</th>
+                <th title="Delta usedJSHeapSize при init (Chromium only). Включает WASM heap.">Mem MB</th>
                 <th>SR</th>
-                <th>frame</th>
               </tr>
             </thead>
             <tbody id="bench-rows"></tbody>
           </table>
         </div>
         <p class="body-small on-surface-variant spec-hint">
-          10 сек pink noise + 1 kHz sine, прогон через каждую модель на этом устройстве.
+          10 сек pink noise + 1 kHz sine @ 48 kHz (как реальный mic). Для 16 kHz моделей resample 48→16 включён в per-frame latency.
           DTLN мерится через OfflineAudioContext (wall-time, без per-frame статистики).
           WebRTC NS не включён — это native APM браузера, изолированно не измерить.
+          Mem MB — delta JS heap (включает WASM); только в Chromium-браузерах, иначе «—».
+          GTCRN прогоняется по всем доступным ORT backends (wasm всегда, webgpu/webnn — runtime-детект).
         </p>
       </md-outlined-card>
 

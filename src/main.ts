@@ -236,18 +236,26 @@ function renderBench(results: BenchResult[]) {
     .map((r) => {
       const cls = rtfClass(r.rtf);
       const fmt = (n: number) => n.toFixed(n < 10 ? 2 : 1);
+      const mem = r.memMb != null ? r.memMb.toFixed(1) : '—';
+      const cold = r.note ? '—' : fmt(r.coldMs);
+      const p50 = r.note ? '—' : fmt(r.p50Ms);
+      const p95 = r.note ? '—' : fmt(r.p95Ms);
+      const p99 = r.note ? '—' : fmt(r.p99Ms);
       return `<tr>
         <td>${r.label}${r.note ? ` <span title="${r.note}" style="cursor:help">ⓘ</span>` : ''}</td>
+        <td>${r.backend}</td>
         <td class="${cls}">${r.rtf.toFixed(3)}</td>
-        <td>${fmt(r.avgMs)}</td>
-        <td>${fmt(r.p50Ms)}</td>
-        <td>${fmt(r.p95Ms)}</td>
-        <td>${fmt(r.p99Ms)}</td>
+        <td>${cold}</td>
+        <td>${p50}</td>
+        <td>${p95}</td>
+        <td>${p99}</td>
+        <td>${mem}</td>
         <td>${(r.sampleRate / 1000).toFixed(0)}k</td>
-        <td>${r.note ? '—' : Math.round(r.audioMs / r.frames) + ' ms'}</td>
       </tr>`;
     })
     .join('');
+  // Expose for headless/Playwright/BrowserStack runs.
+  (window as unknown as { __nslabBench: BenchResult[] }).__nslabBench = results;
 }
 
 btnBench.addEventListener('click', async () => {

@@ -103,27 +103,58 @@ export interface Loaded {
   frameSize: number;
 }
 
+export type Backend = 'wasm' | 'webgpu' | 'webnn';
+
+function freshState(session: ort.InferenceSession): State {
+  return {
+    session,
+    convCache: new ort.Tensor('float32', new Float32Array(2 * 16 * 16 * 33), [2, 1, 16, 16, 33]),
+    traCache: new ort.Tensor('float32', new Float32Array(2 * 3 * 16), [2, 3, 1, 1, 16]),
+    interCache: new ort.Tensor('float32', new Float32Array(2 * 33 * 16), [2, 1, 33, 16]),
+    prevFrame: new Float32Array(HOP),
+    olaTail: new Float32Array(HOP),
+  };
+}
+
+async function createSessionForBackend(backend: Backend): Promise<ort.InferenceSession> {
+  ort.env.wasm.wasmPaths = ORT_WASM_BASE;
+  ort.env.wasm.numThreads = 1;
+  ort.env.wasm.simd = true;
+  const buf = new Uint8Array(await (await fetch(MODEL_URL)).arrayBuffer());
+  return ort.InferenceSession.create(buf, {
+    executionProviders: [backend],
+    graphOptimizationLevel: 'all',
+  });
+}
+
+/**
+ * Изолированный session под конкретный backend (для бенчмарка).
+ * Не трогает основной singleton и не разделяет с ним state-кэши.
+ * Возвращает thin API: processFrame(frame) → enhanced + destroy().
+ */
+export interface IsolatedSession {
+  frameSize: number;
+  processFrame: (frame: Float32Array) => Promise<Float32Array>;
+  destroy: () => Promise<void>;
+}
+
+export async function createSession(backend: Backend): Promise<IsolatedSession> {
+  const session = await createSessionForBackend(backend);
+  const st = freshState(session);
+  return {
+    frameSize: HOP,
+    processFrame: (frame) => processWithState(st, frame),
+    destroy: async () => {
+      await session.release().catch(() => {});
+    },
+  };
+}
+
 export async function init(): Promise<Loaded> {
   if (!loadedPromise) {
     loadedPromise = (async () => {
-      ort.env.wasm.wasmPaths = ORT_WASM_BASE;
-      ort.env.wasm.numThreads = 1;
-      ort.env.wasm.simd = true;
-
-      const buf = new Uint8Array(await (await fetch(MODEL_URL)).arrayBuffer());
-      const session = await ort.InferenceSession.create(buf, {
-        executionProviders: ['wasm'],
-        graphOptimizationLevel: 'all',
-      });
-
-      return {
-        session,
-        convCache: new ort.Tensor('float32', new Float32Array(2 * 16 * 16 * 33), [2, 1, 16, 16, 33]),
-        traCache: new ort.Tensor('float32', new Float32Array(2 * 3 * 16), [2, 3, 1, 1, 16]),
-        interCache: new ort.Tensor('float32', new Float32Array(2 * 33 * 16), [2, 1, 33, 16]),
-        prevFrame: new Float32Array(HOP),
-        olaTail: new Float32Array(HOP),
-      };
+      const session = await createSessionForBackend('wasm');
+      return freshState(session);
     })().catch((err) => {
       loadedPromise = null;
       throw err;
@@ -133,11 +164,7 @@ export async function init(): Promise<Loaded> {
   return { frameSize: HOP };
 }
 
-/** Async: один hop=256 → enhanced 256. State carry внутри. */
-export async function processFrameAsync(frame: Float32Array): Promise<Float32Array> {
-  if (!loadedPromise) throw new Error('gtcrn not initialised');
-  const st = await loadedPromise;
-
+async function processWithState(st: State, frame: Float32Array): Promise<Float32Array> {
   if (frame.length !== HOP) {
     throw new Error(`gtcrn: ожидаем ${HOP} samples/frame, пришло ${frame.length}`);
   }
@@ -153,7 +180,6 @@ export async function processFrameAsync(frame: Float32Array): Promise<Float32Arr
   for (let i = 0; i < N_FFT; i++) re[i] = windowed[i] * WINDOW[i];
   fft(re, im);
 
-  // Pack 257 complex → (1, 257, 1, 2)
   const mixData = new Float32Array(N_FREQ * 2);
   for (let k = 0; k < N_FREQ; k++) {
     mixData[k * 2] = re[k];
@@ -171,7 +197,6 @@ export async function processFrameAsync(frame: Float32Array): Promise<Float32Arr
   st.traCache = outputs.tra_cache_out as ort.Tensor;
   st.interCache = outputs.inter_cache_out as ort.Tensor;
 
-  // Развернуть Hermitian 257 → 512 complex.
   const enhData = outputs.enh.data as Float32Array;
   const enhRe = new Float32Array(N_FFT);
   const enhIm = new Float32Array(N_FFT);
@@ -185,7 +210,6 @@ export async function processFrameAsync(frame: Float32Array): Promise<Float32Arr
   }
   ifft(enhRe, enhIm);
 
-  // Synthesis window + OLA: out[i] = olaTail[i] + (synth[i]); tail = synth[256..511]
   const out = new Float32Array(HOP);
   for (let i = 0; i < HOP; i++) {
     out[i] = st.olaTail[i] + enhRe[i] * WINDOW[i];
@@ -194,6 +218,13 @@ export async function processFrameAsync(frame: Float32Array): Promise<Float32Arr
     st.olaTail[i] = enhRe[HOP + i] * WINDOW[HOP + i];
   }
   return out;
+}
+
+/** Async: один hop=256 → enhanced 256. State carry внутри. */
+export async function processFrameAsync(frame: Float32Array): Promise<Float32Array> {
+  if (!loadedPromise) throw new Error('gtcrn not initialised');
+  const st = await loadedPromise;
+  return processWithState(st, frame);
 }
 
 export async function destroy(): Promise<void> {
