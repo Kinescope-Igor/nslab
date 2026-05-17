@@ -60,11 +60,13 @@ export interface PipelineState {
   stream: MediaStream | null;
   source: AudioNode | null;
   node: AudioNode | null;
+  gain: GainNode | null;
   analyser: AnalyserNode | null;
   recorderDest: MediaStreamAudioDestinationNode | null;
   capture: AudioWorkletNode | null;
   mode: Mode;
   sourceConfig: SourceConfig;
+  gainValue: number;
   onRms?: (dbfs: number) => void;
   onVad?: (vad: number) => void;
 }
@@ -74,11 +76,13 @@ export const state: PipelineState = {
   stream: null,
   source: null,
   node: null,
+  gain: null,
   analyser: null,
   recorderDest: null,
   capture: null,
   mode: 'raw',
   sourceConfig: { kind: 'mic' },
+  gainValue: 3, // +9.5 dB — типичная компенсация микрофона без AGC
 };
 
 let opChain: Promise<void> = Promise.resolve();
@@ -151,6 +155,7 @@ async function teardown(): Promise<void> {
     state.capture.disconnect();
   }
   state.stream?.getTracks().forEach((t) => t.stop());
+  state.gain?.disconnect();
   await state.context?.close();
 
   await Promise.all([
@@ -163,6 +168,7 @@ async function teardown(): Promise<void> {
   state.stream = null;
   state.source = null;
   state.node = null;
+  state.gain = null;
   state.analyser = null;
   state.recorderDest = null;
   state.capture = null;
@@ -184,6 +190,8 @@ async function reinitContext(mode: Mode): Promise<void> {
   state.analyser.fftSize = 1024;
   state.analyser.smoothingTimeConstant = 0.6;
   state.recorderDest = context.createMediaStreamDestination();
+  state.gain = context.createGain();
+  state.gain.gain.value = state.gainValue;
 
   await context.audioWorklet.addModule(captureUrl);
   state.capture = new AudioWorkletNode(context, 'capture-processor', {
@@ -335,11 +343,30 @@ async function applyMode(mode: Mode): Promise<void> {
     newNode = new AudioWorkletNode(state.context, 'passthrough-processor');
   }
 
-  // Source → node → destination, плюс параллельные ветки analyser, recorderDest, capture.
+  // Source → node → gain → {destination, analyser, recorderDest, capture}.
+  // Gain нужен потому что raw-микрофон без AGC обычно тихий; пользователь
+  // крутит его слайдером в UI. Усиление применяется ПОСЛЕ шумодава, чтобы
+  // не насыщать вход модели и не сбивать VAD.
   state.source.connect(newNode);
-  newNode.connect(state.context.destination);
-  newNode.connect(state.analyser);
-  newNode.connect(state.recorderDest);
-  newNode.connect(state.capture);
+  if (state.gain) {
+    newNode.connect(state.gain);
+    state.gain.connect(state.context.destination);
+    state.gain.connect(state.analyser);
+    state.gain.connect(state.recorderDest);
+    state.gain.connect(state.capture);
+  } else {
+    newNode.connect(state.context.destination);
+    newNode.connect(state.analyser);
+    newNode.connect(state.recorderDest);
+    newNode.connect(state.capture);
+  }
   state.node = newNode;
+}
+
+export function setGain(value: number): void {
+  state.gainValue = value;
+  if (state.gain && state.context) {
+    // Плавный ramp вместо мгновенного — без щелчка.
+    state.gain.gain.setTargetAtTime(value, state.context.currentTime, 0.02);
+  }
 }

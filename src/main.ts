@@ -1,4 +1,4 @@
-import { start, stop, setMode, setSource, state, Mode, SourceConfig } from './audio/pipeline';
+import { start, stop, setMode, setSource, setGain, state, Mode, SourceConfig } from './audio/pipeline';
 import { Spectrogram } from './audio/spectrogram';
 import { recordClip } from './audio/recorder';
 import * as dnsmos from './audio/dnsmos';
@@ -11,6 +11,7 @@ import '@material/web/labs/card/outlined-card.js';
 import '@material/web/radio/radio.js';
 import '@material/web/select/outlined-select.js';
 import '@material/web/select/select-option.js';
+import '@material/web/slider/slider.js';
 
 const $ = (sel: string) => document.querySelector(sel)!;
 
@@ -23,6 +24,8 @@ const mRms = $('#m-rms') as HTMLSpanElement;
 const mSr = $('#m-sr') as HTMLSpanElement;
 const mVad = $('#m-vad') as HTMLSpanElement;
 const sourceSelect = $('#source-select') as HTMLElement & { value?: string; disabled?: boolean };
+const gainSlider = $('#gain-slider') as HTMLElement & { value?: number | string };
+const gainLabel = $('#gain-label') as HTMLSpanElement;
 const spectrogramCanvas = $('#spectrogram') as HTMLCanvasElement;
 const modesContainer = document.querySelector('.modes-card')!;
 
@@ -118,6 +121,19 @@ function selectedSource(): SourceConfig {
   const v = sourceSelect.value || 'mic';
   return v === 'mic' ? { kind: 'mic' } : { kind: 'file', url: v };
 }
+
+function updateGainLabel(value: number) {
+  const db = value > 0 ? 20 * Math.log10(value) : -Infinity;
+  gainLabel.textContent = `${value.toFixed(1)}× (${db === -Infinity ? '−∞' : (db >= 0 ? '+' : '') + db.toFixed(1)} dB)`;
+}
+updateGainLabel(state.gainValue);
+
+gainSlider.addEventListener('input', () => {
+  const v = Number(gainSlider.value);
+  if (!Number.isFinite(v)) return;
+  setGain(v);
+  updateGainLabel(v);
+});
 
 function attachSpectrogram() {
   if (state.analyser) spectrogram.attach(state.analyser);
