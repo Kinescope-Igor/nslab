@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "postinstall": "node scripts/copy-dtln-assets.mjs && node scripts/download-dnsmos-assets.mjs",
     "bench:bs": "node bench/browserstack.mjs",
+    "bench:bs:desktop": "node bench/browserstack.mjs --kind desktop",
+    "bench:bs:mobile": "node bench/browserstack.mjs --kind mobile",
     "bench:bs:smoke": "node bench/browserstack.mjs --only \"iphone 15\"",
     "bench:local": "node bench/local.mjs"
   },

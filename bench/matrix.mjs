@@ -57,6 +57,17 @@ export const matrix = [
     os: 'Windows', osVersion: '11', browserVersion: 'latest',
     name: 'Firefox · Windows 11',
   },
+  // Windows 10 — корпоративный long-tail.
+  {
+    kind: 'desktop', browserName: 'Chrome',
+    os: 'Windows', osVersion: '10', browserVersion: 'latest',
+    name: 'Chrome · Windows 10',
+  },
+  {
+    kind: 'desktop', browserName: 'Edge',
+    os: 'Windows', osVersion: '10', browserVersion: 'latest',
+    name: 'Edge · Windows 10',
+  },
   // macOS — для Mac-юзеров Speak команды.
   {
     kind: 'desktop', browserName: 'Chrome',
@@ -72,6 +83,22 @@ export const matrix = [
     kind: 'desktop', browserName: 'Firefox',
     os: 'OS X', osVersion: 'Sequoia', browserVersion: 'latest',
     name: 'Firefox · macOS Sequoia',
+  },
+  {
+    kind: 'desktop', browserName: 'Edge',
+    os: 'OS X', osVersion: 'Sequoia', browserVersion: 'latest',
+    name: 'Edge · macOS Sequoia',
+  },
+  // macOS старее (Ventura) — увидеть деградацию.
+  {
+    kind: 'desktop', browserName: 'Safari',
+    os: 'OS X', osVersion: 'Ventura', browserVersion: 'latest',
+    name: 'Safari · macOS Ventura (старее)',
+  },
+  {
+    kind: 'desktop', browserName: 'Chrome',
+    os: 'OS X', osVersion: 'Ventura', browserVersion: 'latest',
+    name: 'Chrome · macOS Ventura (старее)',
   },
 ];
 

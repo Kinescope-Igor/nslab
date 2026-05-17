@@ -30,19 +30,22 @@ const { Builder, By, until } = pkg;
 
 import { matrix, toCaps, TEST } from './matrix.mjs';
 
-// --only <substr> — фильтр по spec.name (case-insensitive). Полезно для
-// smoke-теста на одном устройстве перед прогоном всей матрицы.
+// CLI флаги:
+//   --only <substr>   — фильтр по spec.name (case-insensitive)
+//   --kind mobile|desktop — фильтр по типу (для запуска только одной группы)
 const args = process.argv.slice(2);
 const onlyIdx = args.indexOf('--only');
 const ONLY = onlyIdx >= 0 ? args[onlyIdx + 1]?.toLowerCase() : null;
-const filteredMatrix = ONLY
-  ? matrix.filter((m) => m.name.toLowerCase().includes(ONLY))
-  : matrix;
+const kindIdx = args.indexOf('--kind');
+const KIND = kindIdx >= 0 ? args[kindIdx + 1] : null;
+let filteredMatrix = matrix;
+if (KIND) filteredMatrix = filteredMatrix.filter((m) => m.kind === KIND);
+if (ONLY) filteredMatrix = filteredMatrix.filter((m) => m.name.toLowerCase().includes(ONLY));
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const OUT_DIR = join(__dirname, 'out');
 const HUB_URL = 'https://hub-cloud.browserstack.com/wd/hub';
-const BENCH_TIMEOUT_MS = 240_000; // 4 мин (DFN-3 cold-load + бенч 4-6 строк)
+const BENCH_TIMEOUT_MS = 360_000; // 6 мин (Firefox macOS на 240s падал — увеличено)
 
 function assertEnv() {
   if (!process.env.BROWSERSTACK_USERNAME || !process.env.BROWSERSTACK_ACCESS_KEY) {
