@@ -73,11 +73,22 @@ export class Spectrogram {
   attach(analyser: AnalyserNode): void {
     this.analyser = analyser;
     this.freqBuf = new Uint8Array(analyser.frequencyBinCount);
-    // Pre-compute log-spaced индексы (низкие сверху, высокие снизу).
+
+    // Фиксируем верхнюю границу спектрограммы на 8 kHz, чтобы все режимы
+    // (16k DTLN/GTCRN и 48k RNNoise/DFN-3) показывали один и тот же
+    // частотный диапазон. Иначе 48k-модели «выглядят порезанными» —
+    // основная энергия речи (80 Hz - 6 kHz) занимает только верхнюю
+    // треть, а нижние 2/3 (6-24 kHz) почти пустые. На самом деле модель
+    // не режет ничего, просто там нет содержания.
+    const nyquist = analyser.context.sampleRate / 2;
+    const maxHz = Math.min(8000, nyquist);
+    const maxBin = Math.max(1, Math.floor((maxHz / nyquist) * analyser.frequencyBinCount));
+
+    // Pre-compute log-spaced индексы (низкие сверху, высокие снизу), до maxBin.
     for (let y = 0; y < this.H; y++) {
       const t = y / this.H;
-      const idx = Math.floor(analyser.frequencyBinCount * (1 - t) ** 2.2);
-      this.binIdxByY[y] = Math.min(idx, analyser.frequencyBinCount - 1);
+      const idx = Math.floor(maxBin * (1 - t) ** 2.2);
+      this.binIdxByY[y] = Math.min(idx, maxBin - 1);
     }
     if (this.rafId === null) this.loop();
   }
