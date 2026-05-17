@@ -27,9 +27,8 @@ import * as rnnoise from './rnnoise';
 import * as dtln from './dtln';
 import * as dfn3 from './dfn3';
 import * as gtcrn from './gtcrn';
-import * as zipenhancer from './zipenhancer';
 
-export type Mode = 'raw' | 'webrtc' | 'rnnoise' | 'dtln' | 'dfn3' | 'gtcrn' | 'zipenhancer';
+export type Mode = 'raw' | 'webrtc' | 'rnnoise' | 'dtln' | 'dfn3' | 'gtcrn';
 
 export type SourceConfig =
   | { kind: 'mic' }
@@ -42,7 +41,6 @@ const SAMPLE_RATE: Record<Mode, number> = {
   dtln: 16000,
   dfn3: 48000,
   gtcrn: 16000,
-  zipenhancer: 16000,
 };
 
 // WebRTC NS активируется через getUserMedia constraints (браузерный APM).
@@ -164,7 +162,6 @@ async function teardown(): Promise<void> {
     rnnoise.destroy().catch(() => {}),
     dfn3.destroy().catch(() => {}),
     gtcrn.destroy().catch(() => {}),
-    zipenhancer.destroy().catch(() => {}),
   ]);
 
   state.context = null;
@@ -335,29 +332,6 @@ async function applyMode(mode: Mode): Promise<void> {
           w.port.postMessage({ type: 'processed', frame: out }, [out.buffer]);
         }).catch((err) => {
           console.error('gtcrn frame error', err);
-        });
-        state.onVad?.(NaN);
-      } else if (e.data?.type === 'rms') {
-        state.onRms?.(e.data.dbfs);
-      }
-    };
-    newNode = w;
-  } else if (mode === 'zipenhancer') {
-    const loaded = await zipenhancer.init();
-    const w = new AudioWorkletNode(state.context, 'forwarder-processor', {
-      processorOptions: { frameSize: loaded.frameSize },
-    });
-    let isStale = false;
-    (w as any).__markStale = () => { isStale = true; };
-    w.port.onmessage = (e) => {
-      if (isStale) return;
-      if (e.data?.type === 'frame') {
-        const frame = e.data.frame as Float32Array;
-        zipenhancer.processChunkAsync(frame).then((out) => {
-          if (isStale) return;
-          w.port.postMessage({ type: 'processed', frame: out }, [out.buffer]);
-        }).catch((err) => {
-          console.error('zipenhancer chunk error', err);
         });
         state.onVad?.(NaN);
       } else if (e.data?.type === 'rms') {
