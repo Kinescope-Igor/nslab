@@ -27,8 +27,9 @@ import * as rnnoise from './rnnoise';
 import * as dtln from './dtln';
 import * as dfn3 from './dfn3';
 import * as gtcrn from './gtcrn';
+import * as dpdfnet from './dpdfnet';
 
-export type Mode = 'raw' | 'webrtc' | 'rnnoise' | 'dtln' | 'dfn3' | 'dfn3_ll' | 'gtcrn';
+export type Mode = 'raw' | 'webrtc' | 'rnnoise' | 'dtln' | 'dfn3' | 'dfn3_ll' | 'gtcrn' | 'dpdfnet_16k' | 'dpdfnet_48k';
 
 export type SourceConfig =
   | { kind: 'mic' }
@@ -42,6 +43,8 @@ const SAMPLE_RATE: Record<Mode, number> = {
   dfn3: 48000,
   dfn3_ll: 48000,
   gtcrn: 16000,
+  dpdfnet_16k: 16000,
+  dpdfnet_48k: 48000,
 };
 
 // WebRTC NS активируется через getUserMedia constraints (браузерный APM).
@@ -163,6 +166,7 @@ async function teardown(): Promise<void> {
     rnnoise.destroy().catch(() => {}),
     dfn3.destroy().catch(() => {}),
     gtcrn.destroy().catch(() => {}),
+    dpdfnet.destroy().catch(() => {}),
   ]);
 
   state.context = null;
@@ -334,6 +338,30 @@ async function applyMode(mode: Mode): Promise<void> {
           w.port.postMessage({ type: 'processed', frame: out }, [out.buffer]);
         }).catch((err) => {
           console.error('gtcrn frame error', err);
+        });
+        state.onVad?.(NaN);
+      } else if (e.data?.type === 'rms') {
+        state.onRms?.(e.data.dbfs);
+      }
+    };
+    newNode = w;
+  } else if (mode === 'dpdfnet_16k' || mode === 'dpdfnet_48k') {
+    const variant = mode === 'dpdfnet_16k' ? '16k' : '48k';
+    const loaded = await dpdfnet.init(variant);
+    const w = new AudioWorkletNode(state.context, 'forwarder-processor', {
+      processorOptions: { frameSize: loaded.frameSize },
+    });
+    let isStale = false;
+    (w as any).__markStale = () => { isStale = true; };
+    w.port.onmessage = (e) => {
+      if (isStale) return;
+      if (e.data?.type === 'frame') {
+        const frame = e.data.frame as Float32Array;
+        dpdfnet.processFrameAsync(frame, variant).then((out) => {
+          if (isStale) return;
+          w.port.postMessage({ type: 'processed', frame: out }, [out.buffer]);
+        }).catch((err) => {
+          console.error('dpdfnet frame error', err);
         });
         state.onVad?.(NaN);
       } else if (e.data?.type === 'rms') {
